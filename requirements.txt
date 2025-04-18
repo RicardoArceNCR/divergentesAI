@@ -23,3 +23,8 @@ typing-inspection==0.4.0
 typing_extensions==4.13.2
 urllib3==2.4.0
 uvicorn==0.34.1
+# Para resumen con BERT
+transformers==4.38.2
+torch==2.2.1
+sentencepiece==0.1.99
+git+https://github.com/dmmiller612/bert-extractive-summarizer.git

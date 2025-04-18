@@ -1,5 +1,5 @@
 # Usa una imagen oficial de Python
-FROM python:3.12
+FROM python:3.10
 
 # Crea un directorio de trabajo dentro del contenedor
 WORKDIR /app

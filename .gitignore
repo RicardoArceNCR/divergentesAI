@@ -1,6 +1,9 @@
-# Entorno virtual
+# Entornos virtuales
 env/
 .venv/
+
+# Configuración privada
+.env
 
 # Archivos de compilación de Python
 __pycache__/
