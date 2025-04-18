@@ -1,0 +1,13 @@
+# Entorno virtual
+env/
+.venv/
+
+# Archivos de compilación de Python
+__pycache__/
+*.py[cod]
+
+# Caché de pytest
+.pytest_cache/
+
+# Configuración de VS Code (opcional)
+.vscode/
