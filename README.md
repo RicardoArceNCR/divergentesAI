@@ -1,43 +1,52 @@
-# 🧠 DivergenteRAG – Plataforma de análisis crítico
+# 🧠 DivergenteRAG – Plataforma local de análisis crítico y automatización editorial
 
-**DivergenteRAG** es un sistema local basado en FastAPI que analiza artículos web, resume su contenido y expone resultados a través de un endpoint REST. Diseñado para uso editorial, análisis automatizado y generación de contenido con IA.
+**DivergenteRAG** es un sistema local construido con FastAPI que permite analizar artículos web, generar resúmenes automáticos y exponer los resultados mediante endpoints REST. Está diseñado para equipos editoriales que buscan automatizar análisis de contenido y generar materiales con IA de forma crítica, rápida y eficiente.
 
 ---
 
-## 📁 Estructura del Proyecto
+## 📁 Estructura del proyecto
 
 ```
 DIVERGENTESAI/
-├── app/                  # Código principal de la API
-│   ├── rutas/            # Endpoints organizados
+├── app/                  # Lógica principal de la API
+│   ├── rutas/            # Endpoints organizadosa
 │   ├── modelos.py        # Modelos Pydantic
-│   ├── resumen.py        # Lógica de resumen
-│   └── main.py           # Punto de entrada de FastAPI
-├── services/             # Servicios externos (OpenAI, prompts, etc.)
-├── test/                 # Pruebas automáticas con pytest
-├── Dockerfile            # Imagen Docker
-├── docker-compose.yml    # Configuración de contenedor
-├── requirements.txt      # Dependencias del proyecto
-└── README.md             # Documentación (¡este archivo!)
+│   ├── resumen.py        # Función de resumen de texto
+│   └── main.py           # Entrada de la aplicación FastAPI
+├── services/             # Conexiones a OpenAI, prompts, utilidades
+├── test/                 # Pruebas automáticas (pytest)
+├── Dockerfile            # Imagen base para contenedor
+├── docker-compose.yml    # Orquestador de servicios
+├── requirements.txt      # Lista de dependencias
+└── README.md             # Documentación del proyecto
 ```
 
 ---
 
-## 🚀 Ejecutar el servidor
+## 🚀 Cómo ejecutar el servidor
+
+En entorno local:
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
+O usando Docker Compose:
+
+```bash
+docker-compose up --build
+```
+
 ---
 
-## 🔌 Endpoints principales
+## 🔌 Endpoints disponibles
 
-- `GET /articulos?n=5`  
-  Extrae, resume y devuelve los últimos artículos analizados.  
-  **Parámetro opcional**: `n` → número de artículos a procesar.
+### `GET /articulos?n=5`
+Extrae y resume automáticamente los últimos artículos encontrados en la web.
 
-Ejemplo de respuesta:
+- **Parámetro opcional**: `n` – cantidad de artículos a procesar (por defecto: 5)
+
+📦 **Ejemplo de respuesta:**
 
 ```json
 [
@@ -53,17 +62,7 @@ Ejemplo de respuesta:
 
 ---
 
-## 🧪 Correr tests
-
-```bash
-pytest
-```
-
----
-
-## 📦 Requisitos
-
-Instalación de dependencias:
+## 📦 Instalación de dependencias
 
 ```bash
 pip install -r requirements.txt
@@ -71,7 +70,15 @@ pip install -r requirements.txt
 
 ---
 
-## 🛠 Tecnologías utilizadas
+## 🧪 Ejecutar pruebas
+
+```bash
+pytest
+```
+
+---
+
+## 🛠 Tecnologías clave
 
 - [FastAPI](https://fastapi.tiangolo.com/)
 - [Uvicorn](https://www.uvicorn.org/)
@@ -83,4 +90,12 @@ pip install -r requirements.txt
 
 ## ✨ Contribuciones
 
-¡Las contribuciones son bienvenidas! Podés enviar un PR o abrir un issue para mejoras o sugerencias.
+¡Las ideas, sugerencias y mejoras son bienvenidas!  
+Podés abrir un issue o enviar un Pull Request. Este proyecto busca crecer con aportes editoriales, técnicos y creativos.
+
+---
+
+## 📫 Contacto
+
+> Ricardo Alberto Arce Aburto  
+> [GitHub](https://github.com/RicardoArceNCR)
