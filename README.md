@@ -1,76 +1,57 @@
-# 🧠 DivergenteRAG – Plataforma local de análisis crítico y automatización editorial
+# 🧠 DivergenteRAG – Plataforma de análisis crítico y automatización editorial
 
-**DivergenteRAG** es un sistema local construido con FastAPI que permite analizar artículos web, generar resúmenes automáticos y exponer los resultados mediante endpoints REST. Está diseñado para equipos editoriales que buscan automatizar análisis de contenido y generar materiales con IA de forma crítica, rápida y eficiente.
+Sistema local con FastAPI que analiza artículos, resume contenido y expone endpoints para uso editorial y visualización automatizada.
 
 ---
 
 ## 📁 Estructura del proyecto
 
-```
-DIVERGENTESAI/
-├── app/                  # Lógica principal de la API
-│   ├── rutas/            # Endpoints organizadosa
-│   ├── modelos.py        # Modelos Pydantic
-│   ├── resumen.py        # Función de resumen de texto
-│   └── main.py           # Entrada de la aplicación FastAPI
-├── services/             # Conexiones a OpenAI, prompts, utilidades
-├── test/                 # Pruebas automáticas (pytest)
-├── Dockerfile            # Imagen base para contenedor
-├── docker-compose.yml    # Orquestador de servicios
-├── requirements.txt      # Lista de dependencias
-└── README.md             # Documentación del proyecto
-```
+- `app/` – Código principal (routers, modelos, servicios)
+- `services/` – Módulos auxiliares para IA, scraping, etc.
+- `test/` – Tests automáticos con Pytest
+- `requirements.txt` – Dependencias locales
+- `requirements-dockers.txt` – Dependencias para Docker
+- `docker-compose.yml` – Contenedor para ejecución completa
+- `Dockerfile` – Imagen base optimizada
+- `.venv/` – Entorno virtual local (no se sube a GitHub)
 
 ---
 
-## 🚀 Cómo ejecutar el servidor
-
-En entorno local:
+## 🚀 Ejecutar en entorno local
 
 ```bash
+# Crear entorno virtual con Python 3.10
+python3.10 -m venv .venv
+source .venv/bin/activate
+
+# Instalar dependencias
+pip install -r requirements.txt
+
+# Levantar servidor
 uvicorn app.main:app --reload
 ```
 
-O usando Docker Compose:
+Accedé a `http://localhost:8000/docs` para probar los endpoints.
+
+---
+
+## 🐳 Ejecutar con Docker
 
 ```bash
-docker-compose up --build
+docker-compose build --no-cache
+docker-compose up
 ```
 
----
+La API se levantará en `http://localhost:8000`.
 
-## 🔌 Endpoints disponibles
-
-### `GET /articulos?n=5`
-Extrae y resume automáticamente los últimos artículos encontrados en la web.
-
-- **Parámetro opcional**: `n` – cantidad de artículos a procesar (por defecto: 5)
-
-📦 **Ejemplo de respuesta:**
-
-```json
-[
-  {
-    "titulo": "Título del artículo",
-    "resumen": "Texto resumido del artículo",
-    "url": "https://ejemplo.com/articulo",
-    "autor": "Nombre del autor",
-    "fecha": "2025-04-17"
-  }
-]
-```
-
----
-
-## 📦 Instalación de dependencias
-
+> Si necesitás detenerla:
 ```bash
-pip install -r requirements.txt
+docker-compose down
 ```
 
 ---
 
-## 🧪 Ejecutar pruebas
+## 🧪 Testing (opcional)
 
 ```bash
 pytest
@@ -78,24 +59,9 @@ pytest
 
 ---
 
-## 🛠 Tecnologías clave
+## 🧠 Funcionalidades actuales
 
-- [FastAPI](https://fastapi.tiangolo.com/)
-- [Uvicorn](https://www.uvicorn.org/)
-- [OpenAI API](https://platform.openai.com/)
-- [Docker](https://www.docker.com/)
-- [Pytest](https://docs.pytest.org/)
-
----
-
-## ✨ Contribuciones
-
-¡Las ideas, sugerencias y mejoras son bienvenidas!  
-Podés abrir un issue o enviar un Pull Request. Este proyecto busca crecer con aportes editoriales, técnicos y creativos.
-
----
-
-## 📫 Contacto
-
-> Ricardo Alberto Arce Aburto  
-> [GitHub](https://github.com/RicardoArceNCR)
+- Resumen automático con BERT
+- Cliente OpenAI para generación
+- API REST en FastAPI
+- Arquitectura modular
