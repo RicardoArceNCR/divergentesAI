@@ -50,3 +50,8 @@ bert-extractive-summarizer@git+https://github.com/dmmiller612/bert-extractive-su
 # 🔑 Cliente OpenAI
 # ================================================
 openai==1.16.1
+
+# ================================================
+# 🌱 Variables de entorno
+# ================================================
+python-dotenv==1.0.1
