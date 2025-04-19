@@ -1,8 +1,7 @@
 from fastapi import APIRouter
-from app.modelos import Articulo
 from app.scraper import obtener_urls_home, extraer_contenido
 from app.resumen import resumir
-from app.services.openai_client import generar_imagen
+from app.modelos import Articulo
 import logging
 
 logger = logging.getLogger(__name__)
@@ -29,8 +28,3 @@ def articulos(n: int = 5):
             continue
 
     return resultados
-
-@router.get("/imagen", tags=["Imágenes"], summary="Generar imagen desde prompt")
-def obtener_imagen(prompt: str):
-    url = generar_imagen(prompt)
-    return {"imagen_url": url}
