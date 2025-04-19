@@ -7,3 +7,7 @@ custom_model = Summarizer(custom_model=model, custom_tokenizer=tokenizer)
 
 def resumir(texto, max_frases=3):
     return custom_model(texto, num_sentences=max_frases)
+
+from app.__version__ import __version__
+print(f"🚀 Iniciando DivergenteRAG v{__version__}")
+

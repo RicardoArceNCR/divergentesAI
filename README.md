@@ -4,7 +4,7 @@ Sistema local con FastAPI que analiza artículos, resume contenido y expone endp
 
 ---
 
-## 📁 Estructura del proyecto
+## 🗂️ Estructura del proyecto
 
 - `app/` – Código principal (routers, modelos, servicios)
 - `services/` – Módulos auxiliares para IA, scraping, etc.
@@ -31,27 +31,19 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Accedé a `http://localhost:8000/docs` para probar los endpoints.
-
 ---
 
 ## 🐳 Ejecutar con Docker
 
 ```bash
+# Levantar entorno
 docker-compose build --no-cache
 docker-compose up
 ```
 
-La API se levantará en `http://localhost:8000`.
-
-> Si necesitás detenerla:
-```bash
-docker-compose down
-```
-
 ---
 
-## 🧪 Testing (opcional)
+## 🧪 Ejecutar pruebas
 
 ```bash
 pytest
@@ -59,9 +51,29 @@ pytest
 
 ---
 
-## 🧠 Funcionalidades actuales
+## 🔐 Variables de entorno
 
-- Resumen automático con BERT
-- Cliente OpenAI para generación
-- API REST en FastAPI
-- Arquitectura modular
+Crear archivo `.env` basado en `.env.example`:
+
+```env
+OPENAI_API_KEY=tu_clave_openai
+ENV=development
+PORT=8000
+```
+
+---
+
+## 📦 Comandos con Make
+
+Este proyecto incluye un `Makefile` para automatizar tareas comunes:
+
+| Comando | Descripción |
+|--------|-------------|
+| `make init` | Crea entorno virtual e instala dependencias |
+| `make dev` | Ejecuta el servidor local con FastAPI |
+| `make docker` | Compila y levanta los contenedores con Docker |
+| `make test` | Ejecuta pruebas con `pytest` |
+| `make clean` | Elimina cachés y carpetas temporales |
+| `make activate` | Muestra cómo activar el entorno virtual |
+
+> Asegúrate de tener `make` instalado en tu sistema (Linux/macOS lo incluyen por defecto, en Windows se puede usar [GnuWin](http://gnuwin32.sourceforge.net/packages/make.htm) o WSL).
