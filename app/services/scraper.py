@@ -1,28 +1,68 @@
 import requests
 from bs4 import BeautifulSoup
+from urllib.parse import urlparse, urljoin
 
-def obtener_urls_home(url="https://www.divergentes.com"):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (compatible; RicardoBot/1.0)"
-    }
-    response = requests.get(url, headers=headers, allow_redirects=True)
-    response.raise_for_status()
-    soup = BeautifulSoup(response.text, "html.parser")
-    enlaces = [a['href'] for a in soup.find_all("a", href=True)]
-    return list(set(enlaces))
-
-def extraer_contenido(url):
+def extraer_contenido(url: str) -> dict:
     response = requests.get(url)
     soup = BeautifulSoup(response.text, "html.parser")
+    dominio = urlparse(url).netloc
 
-    titulo = soup.find("h1").get_text(strip=True) if soup.find("h1") else ""
-    parrafos = soup.find_all("p")
-    cuerpo = "\n".join([p.get_text(strip=True) for p in parrafos])
+    def texto_de(selector, attr=None):
+        el = soup.select_one(selector)
+        if el:
+            return el.get(attr) if attr else el.get_text(strip=True)
+        return ""
+
+    def extraer_links(externos=False):
+        links = []
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if externos:
+                if dominio not in href and href.startswith("http"):
+                    links.append(href)
+            else:
+                if dominio in href or href.startswith("/"):
+                    links.append(urljoin(url, href))
+        return list(set(links))
+
+    def extraer_colores():
+        colores = set()
+        for tag in soup.find_all(style=True):
+            estilo = tag["style"]
+            for parte in estilo.split(";"):
+                if "color" in parte:
+                    try:
+                        colores.add(parte.split(":")[1].strip())
+                    except IndexError:
+                        continue
+        return list(colores)
+
+    def extraer_documentos():
+        return [a["href"] for a in soup.find_all("a", href=True) if any(a["href"].endswith(ext) for ext in [".pdf", ".docx", ".xlsx"])]
+
+    def extraer_apis():
+        return [a["href"] for a in soup.find_all("a", href=True) if "api" in a["href"]]
+
+    def extraer_anuncios():
+        return [div.text.strip() for div in soup.find_all(True, class_=lambda c: c and "ad" in c.lower())]
+
+    titulo = texto_de("h1")
+    subtitulo = texto_de("h2")
+    autor = texto_de(".author") or texto_de('[name=author]', attr="content")
+    fecha = texto_de("time", attr="datetime") or texto_de("meta[name=date]", attr="content")
+    cuerpo = "\n".join([p.get_text(strip=True) for p in soup.find_all("p")])
 
     return {
         "titulo": titulo,
-        "url": url,
+        "subtitulo": subtitulo,
+        "autor": autor,
+        "fecha": fecha,
         "texto": cuerpo,
-        "autor": "",  # Se puede mejorar si Divergentes lo estructura
-        "fecha": ""   # Igual para la fecha
+        "url": url,
+        "links_relacionados": extraer_links(externos=False),
+        "links_externos": extraer_links(externos=True),
+        "documentos": extraer_documentos(),
+        "apis": extraer_apis(),
+        "anuncios": extraer_anuncios(),
+        "colores": extraer_colores()
     }
