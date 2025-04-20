@@ -26,6 +26,7 @@ pybind11==2.12
 
 # 🧠 Modelos de lenguaje
 transformers==4.38.2
+sentence-transformers==2.6.1
 sentencepiece==0.1.99
 
 # 🔥 Torch con compatibilidad NumPy limitada
@@ -42,3 +43,6 @@ openai==1.16.1
 
 # 🌱 Variables de entorno
 python-dotenv==1.0.1
+
+# 🧪 Testing
+pytest==8.1.1

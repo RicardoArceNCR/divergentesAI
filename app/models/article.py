@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 
 class URLInput(BaseModel):
     url: str = Field(..., description="URL del artículo o recurso a procesar")
@@ -23,3 +23,4 @@ class Articulo(BaseModel):
     url: str = Field(..., description="Enlace original del artículo")
     autor: Optional[str] = Field(None, description="Nombre del autor (si está disponible)")
     fecha: Optional[str] = Field(None, description="Fecha de publicación (si está disponible)")
+    embedding: Optional[List[float]] = None  # <- NUEVO
