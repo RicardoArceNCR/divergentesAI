@@ -5,14 +5,11 @@ def obtener_urls_home(url="https://www.divergentes.com"):
     headers = {
         "User-Agent": "Mozilla/5.0 (compatible; RicardoBot/1.0)"
     }
-
-    response = requests.get(url, headers=headers, allow_redirects=True, timeout=10)
-    response.raise_for_status()  # lanza error si la respuesta es 4xx o 5xx
-
+    response = requests.get(url, headers=headers, allow_redirects=True)
+    response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
-    enlaces = [a['href'] for a in soup.find_all("a", href=True) if "/202" in a['href']]
+    enlaces = [a['href'] for a in soup.find_all("a", href=True)]
     return list(set(enlaces))
-
 
 def extraer_contenido(url):
     response = requests.get(url)
@@ -26,7 +23,6 @@ def extraer_contenido(url):
         "titulo": titulo,
         "url": url,
         "texto": cuerpo,
-        "autor": "",     # Se puede mejorar si Divergentes lo estructura
-        "fecha": ""      # Igual para la fecha
+        "autor": "",  # Se puede mejorar si Divergentes lo estructura
+        "fecha": ""   # Igual para la fecha
     }
-

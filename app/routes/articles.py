@@ -1,13 +1,18 @@
 from fastapi import APIRouter
-from app.scraper import obtener_urls_home, extraer_contenido
-from app.resumen import resumir
-from app.modelos import Articulo
+from app.services.scraper import obtener_urls_home, extraer_contenido
+from app.logic.summary import resumir
+from app.models.article import Articulo
 import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-@router.get("/articulos", response_model=list[Articulo], tags=["Artículos"], summary="Obtener artículos resumidos")
+@router.get(
+    "/articulos",
+    response_model=list[Articulo],
+    tags=["Artículos"],
+    summary="Obtener artículos resumidos"
+)
 def articulos(n: int = 5):
     urls = obtener_urls_home()
     resultados = []
@@ -27,4 +32,3 @@ def articulos(n: int = 5):
             logger.warning(f"Error con {url}: {e}")
             continue
 
-    return resultados

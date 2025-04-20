@@ -1,12 +1,13 @@
 from fastapi import APIRouter
-from app.modelos import TextoResumenInput, ClasificacionOutput
+from app.models.article import TextoResumenInput
+from app.models.classification import ClassificationOutput
 from app.services.prompt_utils import clasificar_texto
 
 router = APIRouter()
 
 @router.post(
     "/clasificar",
-    response_model=ClasificacionOutput,
+    response_model=ClassificationOutput,
     tags=["Clasificación"],
     summary="Clasificar texto por temática",
     responses={
@@ -16,8 +17,8 @@ router = APIRouter()
                 "application/json": {
                     "example": {
                         "categorias": {
-                            "politica": 0.75,
-                            "corrupcion": 0.33,
+                            "política": 0.75,
+                            "corrupción": 0.33,
                             "derechos_humanos": 0.5
                         }
                     }

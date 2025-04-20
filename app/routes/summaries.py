@@ -1,6 +1,6 @@
 from fastapi import APIRouter
-from app.resumen import resumir
-from app.modelos import TextoResumenInput, TextoOutput
+from app.logic.summary import resumir
+from app.schemas import TextoResumenInput, TextoOutput
 
 router = APIRouter()
 
