@@ -51,6 +51,16 @@ pytest
 
 ---
 
+{
+  "titulo": "Protestas en la capital",
+  "resumen": "El presidente fue acusado de soborno...",
+  "url": "https://ejemplo.com/articulo",
+  "autor": "Nombre del autor",
+  "fecha": "2025-04-17",
+  "embedding": [0.123, -0.456, 0.789]
+}
+
+
 ## 🔐 Variables de entorno
 
 Crear archivo `.env` basado en `.env.example`:

@@ -1,6 +1,8 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
+# 🧾 Entradas simples
+
 class URLInput(BaseModel):
     url: str = Field(..., description="URL del artículo o recurso a procesar")
 
@@ -14,8 +16,12 @@ class TextoResumenInput(BaseModel):
         description="Texto a resumir"
     )
 
+# 🧠 Salidas generales
+
 class TextoOutput(BaseModel):
     resumen: str = Field(..., description="Resumen generado del texto enviado")
+
+# 📰 Artículos
 
 class Articulo(BaseModel):
     titulo: str = Field(..., description="Título principal del artículo")
@@ -24,12 +30,12 @@ class Articulo(BaseModel):
     autor: Optional[str] = Field(None, description="Nombre del autor (si está disponible)")
     fecha: Optional[str] = Field(None, description="Fecha de publicación (si está disponible)")
     embedding: Optional[List[float]] = Field(
-    None,
-    description="Vector de representación semántica del artículo",
-    example=[0.123, -0.456, 0.789]
+        None,
+        description="Vector de representación semántica del artículo",
+        example=[0.123, -0.456, 0.789]
     )
-    
-    class ArticuloExtendido(BaseModel):
+
+class ArticuloExtendido(BaseModel):
     titulo: str = Field(..., description="Título del artículo")
     subtitulo: Optional[str] = Field(None, description="Subtítulo del artículo")
     texto: str = Field(..., description="Cuerpo completo del artículo")
@@ -70,5 +76,3 @@ class Articulo(BaseModel):
                 "embedding": [0.123, -0.456, 0.789]
             }
         }
-
-
