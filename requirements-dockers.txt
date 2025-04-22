@@ -1,8 +1,8 @@
 # Seguridad y compatibilidad HTTP
-certifi==2024.2.2
-charset-normalizer==3.3.2
-urllib3==2.2.1
-idna==3.4
+certifi==2025.1.31
+charset-normalizer==3.4.1
+urllib3==2.4.0
+idna==3.10
 
 # Serialización y parsing
 typing-extensions>=4.7,<5.0
@@ -10,49 +10,45 @@ typing-inspection==0.4.0
 annotated-types==0.7.0
 
 # Utilidades generales
-tqdm==4.66.2
-click==8.1.7
+tqdm==4.67.1
+click==8.1.8
 distro==1.9.0
 jiter==0.9.0
-anyio==4.0.0
-sniffio==1.3.0
-requests==2.31.0
-soupsieve==2.5
-beautifulsoup4==4.13.0
+anyio==4.9.0
+sniffio==1.3.1
+requests==2.32.3
+cloudscraper==1.2.71
+soupsieve==2.4.1
+beautifulsoup4==4.13.4
 
 # Core de FastAPI y validación
-fastapi==0.115.2
+fastapi==0.115.12
+starlette==0.46.2
+h11==0.14.0
 uvicorn==0.34.1
-pydantic==2.3.0
-pydantic_core==2.6.3
+watchfiles>=0.20  # 🔁 Recarga automática para desarrollo
+pydantic==2.11.3
+pydantic_core==2.33.1
 pybind11==2.12
 
-# ================================================
-# 🧠 NLP y modelos de lenguaje
-# ================================================
+# NLP y modelos de lenguaje
 transformers==4.38.2
 sentence-transformers==2.6.1
 sentencepiece==0.1.99
+spacy==3.7.4  # 🧠 Procesamiento de lenguaje natural
+https://github.com/explosion/spacy-models/releases/download/es_core_news_md-3.7.0/es_core_news_md-3.7.0-py3-none-any.whl  # Modelo español
 
-# ================================================
-# 🧠 Torch con compatibilidad NumPy limitada
-# ================================================
+# Torch con compatibilidad NumPy limitada
 numpy>=1.23,<2.0
-torch==2.2.1
-torchaudio==2.2.1
-torchvision==0.17.1
+torch==2.6.0
+torchaudio==2.6.0
+torchvision==0.21.0
 
-# ================================================
-# 🔍 Resumen extractivo BERT (fuente externa)
-# ================================================
+# Resumen extractivo BERT (fuente externa)
 bert-extractive-summarizer@git+https://github.com/dmmiller612/bert-extractive-summarizer.git
 
-# ================================================
-# 🔑 Cliente OpenAI
-# ================================================
+# Cliente OpenAI
 openai==1.16.1
 
-# ================================================
-# 🌱 Variables de entorno
-# ================================================
+# Variables de entorno
 python-dotenv==1.0.1

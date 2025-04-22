@@ -1,11 +1,27 @@
+from urllib.parse import urlparse, urljoin
+from app.scrapers import SCRAPER_REGISTRY
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urlparse, urljoin
 
 def extraer_contenido(url: str) -> dict:
+    dominio = urlparse(url).netloc.lower()
+
+    for nombre, scraper in SCRAPER_REGISTRY.items():
+        if nombre.lower() in dominio:
+            print(f"🧠 usando scraper personalizado: {nombre}")
+            return scraper.extraer_contenido(url)
+
+    print("🧠 usando extractor genérico")
+    return extractor_generico(url)
+
+
+def extractor_generico(url: str) -> dict:
     response = requests.get(url)
     soup = BeautifulSoup(response.text, "html.parser")
     dominio = urlparse(url).netloc
+
+    contenido = soup.select_one("article") or soup.select_one("div.entry-content") or soup
+    cuerpo = "\n".join([p.get_text(strip=True) for p in contenido.find_all("p")]) if contenido else ""
 
     def texto_de(selector, attr=None):
         el = soup.select_one(selector)
@@ -50,7 +66,6 @@ def extraer_contenido(url: str) -> dict:
     subtitulo = texto_de("h2")
     autor = texto_de(".author") or texto_de('[name=author]', attr="content")
     fecha = texto_de("time", attr="datetime") or texto_de("meta[name=date]", attr="content")
-    cuerpo = "\n".join([p.get_text(strip=True) for p in soup.find_all("p")])
 
     return {
         "titulo": titulo,

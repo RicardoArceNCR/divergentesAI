@@ -1,8 +1,12 @@
 from fastapi import FastAPI
+
 from app.routes.articles import router as articles_router
 from app.routes.summaries import router as resumenes_router
-from app.routes.classification import router as classification_router
+from app.routes.classification_router import router as classification_router  # ✅ corregido
 from app.routes.images import router as imagenes_router
+from app.routes import analysis
+
+
 
 from app.logic.summary import resumir
 from app.services.openai_client import generar_imagen
@@ -13,7 +17,9 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# Registro de rutas
 app.include_router(articles_router)
 app.include_router(resumenes_router)
 app.include_router(classification_router)
 app.include_router(imagenes_router)
+app.include_router(analysis.router)
