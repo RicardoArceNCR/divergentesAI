@@ -39,8 +39,8 @@ class Articulo(BaseModel):
     )
 
     class Config:
-        orm_mode = True
-        schema_extra = {
+        from_attributes = True
+        json_schema_extra = {
             "example": {
                 "titulo": "Protestas sacuden la capital",
                 "resumen": "Se registraron protestas masivas...",
@@ -66,8 +66,8 @@ class ArticuloExtendido(Articulo):
     colores: Optional[List[str]] = Field(default_factory=list, description="Colores CSS identificados en estilos inline")
 
     class Config:
-        orm_mode = True
-        schema_extra = {
+        from_attributes = True
+        json_schema_extra = {
             "example": {
                 "titulo": "Protestas sacuden la capital",
                 "subtitulo": "Grupos civiles se enfrentan con la policía",

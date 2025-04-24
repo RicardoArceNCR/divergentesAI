@@ -52,3 +52,6 @@ openai==1.16.1
 
 # Variables de entorno
 python-dotenv==1.0.1
+
+#Testing
+pytest==8.1.1

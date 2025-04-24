@@ -5,6 +5,7 @@ from app.routes.summaries import router as resumenes_router
 from app.routes.classification_router import router as classification_router  # ✅ corregido
 from app.routes.images import router as imagenes_router
 from app.routes import analysis
+from app.routes.logs import router as logs_router
 
 
 
@@ -23,3 +24,4 @@ app.include_router(resumenes_router)
 app.include_router(classification_router)
 app.include_router(imagenes_router)
 app.include_router(analysis.router)
+app.include_router(logs_router)

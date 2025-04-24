@@ -17,4 +17,4 @@ class UserResponse(UserBase):
     is_active: bool = Field(..., description="Indica si el usuario está activo")
 
     class Config:
-        orm_mode = True
+        from_attributes = True

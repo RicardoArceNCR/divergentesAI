@@ -1,6 +1,9 @@
 from fastapi import APIRouter
 from app.services.coordinador_scrapers import obtener_urls_home
 from app.logic.analisis import procesar_articulo_completo
+import os
+import json
+from datetime import datetime
 
 router = APIRouter()
 
@@ -14,5 +17,14 @@ def analizar_articulos(n: int = 5):
         resultado = procesar_articulo_completo(url)
         if resultado:
             resultados.append(resultado)
+
+            # Guardar log del resultado
+            nombre_archivo = url.strip("/").split("/")[-1][:50] or "sin-nombre"
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            ruta = f"logs/articulos/{nombre_archivo}-{timestamp}.json"
+
+            os.makedirs("logs/articulos", exist_ok=True)
+            with open(ruta, "w") as f:
+                json.dump(resultado, f, indent=2, ensure_ascii=False)
 
     return resultados

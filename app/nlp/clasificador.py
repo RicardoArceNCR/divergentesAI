@@ -1,3 +1,6 @@
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub")
+
 from sentence_transformers import SentenceTransformer, util
 
 modelo = SentenceTransformer("all-MiniLM-L6-v2")
