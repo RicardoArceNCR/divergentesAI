@@ -1,4 +1,9 @@
-from app.scrapers import SCRAPER_REGISTRY
+from app.ingestion.scrapers.divergentes_scraper import DivergentesScraper
+
+# Registro global de scrapers
+SCRAPER_REGISTRY = {
+    "divergentes": DivergentesScraper()
+}
 
 def obtener_urls_home(n=5) -> list[str]:
     """

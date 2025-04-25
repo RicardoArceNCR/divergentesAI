@@ -1,7 +1,7 @@
 import cloudscraper
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-from app.base_scrapers.scraper_template import ScraperTemplate
+from app.ingestion.scrapers.scraper_template import ScraperTemplate
 
 class DivergentesScraper(ScraperTemplate):
     def __init__(self, base_url="https://www.divergentes.com/"):
