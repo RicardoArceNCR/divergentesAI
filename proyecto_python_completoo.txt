@@ -40,7 +40,7 @@ def clean_text(text):
 
 ### app//ingestion/ingestion_pipeline.py ###
 from app.ingestion.scrapers.divergentes import DivergentesScraper
-from app.ingestion.cleanners.text_cleaner import clean_text
+from app.ingestion.cleaners.text_cleaner import clean_text
 import json
 import os
 
@@ -333,9 +333,9 @@ class ScraperTemplate(BaseScraper):
         }
 
 ### app//logic/analisis.py ###
-from app.services.extractores import extraer_contenido
+from app.services.contenido_extractor import extraer_contenido
 from app.nlp.clasificador import clasificar_texto
-from app.nlp.extractores import extraer_entidades
+from app.nlp.entidades_extractor import extraer_entidades
 from app.logic.summary import resumir
 
 def procesar_articulo_completo(url: str) -> dict:
@@ -642,7 +642,7 @@ def extraer_entidades(texto: str) -> list:
     doc = nlp(texto)
     return [{"texto": ent.text, "etiqueta": ent.label_} for ent in doc.ents]
 
-### app//nlp/extractores.py ###
+### app//nlp/entidades_extractores.py ###
 import spacy
 nlp = spacy.load("es_core_news_md")
 
@@ -697,7 +697,7 @@ from fastapi import APIRouter
 # Internal Logic
 from app.logic.summary import resumir
 from app.services.scrapers.coordinador_scrapers import obtener_urls_home
-from app.services.extractores import extraer_contenido
+from app.services.contenido_extractor import extraer_contenido
 from app.services.nlp.embedding_utils import generar_embedding
 
 # Models
@@ -757,7 +757,7 @@ from fastapi import APIRouter
 from app.models.article import TextoResumenInput
 from app.models.classification import ClassificationOutput
 from app.nlp.clasificador import clasificar_texto  # <-- clasificación temática
-from app.nlp.extractores import extraer_entidades  # <-- entidades con spaCy
+from app.nlp.entidades_extractor import extraer_entidades  # <-- entidades con spaCy
 
 router = APIRouter()
 
@@ -858,11 +858,6 @@ def resumen_logs(n: int = 10):
 
     return resultados
 
-### app//routes/main.py ###
-from app.routes.resultados import router as resultados_router
-
-app.include_router(resultados_router)
-
 ### app//routes/resultados.py ###
 # app/rutas/resultados.py
 from fastapi import APIRouter, Depends
@@ -911,7 +906,45 @@ class TextoOutput(BaseModel):
 
 ### app//services/__init__.py ###
 
-### app//services/extractores.py ###
+### app//services/openai/openai_client.py ###
+import openai
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+openai.api_key = os.getenv("OPENAI_API_KEY")
+print("🔐 API Key (inicio parcial):", openai.api_key[:8])
+
+def generar_imagen(prompt: str) -> str:
+    """
+    Genera una imagen a partir de un prompt usando OpenAI DALL·E.
+
+    Args:
+        prompt (str): Texto descriptivo para generar la imagen.
+
+    Returns:
+        str: URL de la imagen generada o un placeholder si falla.
+    """
+    if not prompt or not isinstance(prompt, str):
+        raise ValueError("El prompt debe ser un string no vacío.")
+
+    try:
+        response = openai.images.generate(
+            model="dall-e-3",  # o "dall-e-2" si tu cuenta no tiene acceso
+            prompt=prompt,
+            size="1024x1024",
+            quality="standard",
+            n=1,
+        )
+        return response.data[0].url
+    except Exception as e:
+        print(f"❌ Error al generar imagen: {e}")
+        return "https://via.placeholder.com/1024?text=Error+al+generar+imagen"
+if os.getenv("DEBUG") == "1":
+    print("🔐 API Key (inicio parcial):", openai.api_key[:8])
+
+### app//services/scraper_extractores.py ###
 from urllib.parse import urlparse, urljoin
 from app.ingestion.scrapers import SCRAPER_REGISTRY
 import requests
@@ -996,78 +1029,6 @@ def extractor_generico(url: str) -> dict:
         "colores": extraer_colores()
     }
 
-### app//services/nlp/embedding_utils.py ###
-from sentence_transformers import SentenceTransformer
-import json
-
-modelo = SentenceTransformer("all-MiniLM-L6-v2")
-
-def generar_embedding(texto: str) -> list:
-    """Devuelve un embedding como lista de floats"""
-    return modelo.encode(texto).tolist()
-
-def serializar_embedding(embedding: list) -> str:
-    """Convierte la lista de floats a un string JSON"""
-    return json.dumps(embedding)
-
-def deserializar_embedding(embedding_str: str) -> list:
-    """Convierte el string JSON a lista de floats"""
-    return json.loads(embedding_str)
-
-### app//services/nlp/prompt_utils.py ###
-def clasificar_texto(texto: str) -> dict:
-    # Simulación simple basada en palabras clave
-    categorias = {
-        "politica": ["gobierno", "presidente", "elección", "diputado"],
-        "corrupcion": ["soborno", "lavado", "malversación"],
-        "derechos_humanos": ["represión", "protesta", "exilio", "presos"],
-    }
-
-    resultado = {}
-    texto_lower = texto.lower()
-    for categoria, palabras in categorias.items():
-        resultado[categoria] = sum(p in texto_lower for p in palabras) / len(palabras)
-
-    return resultado
-
-### app//services/openai/openai_client.py ###
-import openai
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-openai.api_key = os.getenv("OPENAI_API_KEY")
-print("🔐 API Key (inicio parcial):", openai.api_key[:8])
-
-def generar_imagen(prompt: str) -> str:
-    """
-    Genera una imagen a partir de un prompt usando OpenAI DALL·E.
-
-    Args:
-        prompt (str): Texto descriptivo para generar la imagen.
-
-    Returns:
-        str: URL de la imagen generada o un placeholder si falla.
-    """
-    if not prompt or not isinstance(prompt, str):
-        raise ValueError("El prompt debe ser un string no vacío.")
-
-    try:
-        response = openai.images.generate(
-            model="dall-e-3",  # o "dall-e-2" si tu cuenta no tiene acceso
-            prompt=prompt,
-            size="1024x1024",
-            quality="standard",
-            n=1,
-        )
-        return response.data[0].url
-    except Exception as e:
-        print(f"❌ Error al generar imagen: {e}")
-        return "https://via.placeholder.com/1024?text=Error+al+generar+imagen"
-if os.getenv("DEBUG") == "1":
-    print("🔐 API Key (inicio parcial):", openai.api_key[:8])
-
 ### app//services/scrapers/coordinador_scrapers.py ###
 from app.ingestion.scrapers.divergentes_scraper import DivergentesScraper
 
@@ -1091,6 +1052,40 @@ def obtener_urls_home(n=5) -> list[str]:
     return urls
 
 ### app//services/test_script.py ###
+
+### app//services/utils_nlp/embedding_utils.py ###
+from sentence_transformers import SentenceTransformer
+import json
+
+modelo = SentenceTransformer("all-MiniLM-L6-v2")
+
+def generar_embedding(texto: str) -> list:
+    """Devuelve un embedding como lista de floats"""
+    return modelo.encode(texto).tolist()
+
+def serializar_embedding(embedding: list) -> str:
+    """Convierte la lista de floats a un string JSON"""
+    return json.dumps(embedding)
+
+def deserializar_embedding(embedding_str: str) -> list:
+    """Convierte el string JSON a lista de floats"""
+    return json.loads(embedding_str)
+
+### app//services/utils_nlp/prompt_utils.py ###
+def clasificar_texto(texto: str) -> dict:
+    # Simulación simple basada en palabras clave
+    categorias = {
+        "politica": ["gobierno", "presidente", "elección", "diputado"],
+        "corrupcion": ["soborno", "lavado", "malversación"],
+        "derechos_humanos": ["represión", "protesta", "exilio", "presos"],
+    }
+
+    resultado = {}
+    texto_lower = texto.lower()
+    for categoria, palabras in categorias.items():
+        resultado[categoria] = sum(p in texto_lower for p in palabras) / len(palabras)
+
+    return resultado
 
 ### app//utils/logs.py ###
 import os

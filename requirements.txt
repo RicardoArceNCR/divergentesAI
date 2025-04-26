@@ -30,7 +30,7 @@ pybind11==2.12
 transformers==4.38.2
 sentence-transformers==2.6.1
 sentencepiece==0.1.99
-spacy==3.7.4  # 🧠 NLP con extracción de entidades
+spacy[es]==3.7.4
 https://github.com/explosion/spacy-models/releases/download/es_core_news_md-3.7.0/es_core_news_md-3.7.0-py3-none-any.whl
 
 # 🔥 Torch con compatibilidad NumPy limitada

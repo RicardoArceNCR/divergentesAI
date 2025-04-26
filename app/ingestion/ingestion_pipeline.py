@@ -1,5 +1,5 @@
 from app.ingestion.scrapers.divergentes import DivergentesScraper
-from app.ingestion.cleanners.text_cleaner import clean_text
+from app.ingestion.cleaners.text_cleaner import clean_text
 import json
 import os
 

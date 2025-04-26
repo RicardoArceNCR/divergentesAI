@@ -1,6 +1,6 @@
-from app.services.extractores import extraer_contenido
+from app.services.scraper_extractor import extraer_contenido
 from app.nlp.clasificador import clasificar_texto
-from app.nlp.extractores import extraer_entidades
+from app.nlp.entidades import extraer_entidades
 from app.logic.summary import resumir
 
 def procesar_articulo_completo(url: str) -> dict:
