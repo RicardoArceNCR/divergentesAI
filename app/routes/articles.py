@@ -6,9 +6,9 @@ from fastapi import APIRouter
 
 # Internal Logic
 from app.logic.summary import resumir
-from app.services.coordinador_scrapers import obtener_urls_home
+from app.services.scrapers.coordinador_scrapers import obtener_urls_home
 from app.services.extractores import extraer_contenido
-from app.services.embedding_utils import generar_embedding
+from app.services.nlp.embedding_utils import generar_embedding
 
 # Models
 from app.models.article import Articulo, ArticuloExtendido

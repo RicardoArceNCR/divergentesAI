@@ -1,0 +1,59 @@
+app/
+├── __init__.py
+├── __version__.py
+├── database.py
+├── ingestion
+│   ├── cleaners
+│   │   ├── __init__.py
+│   │   └── text_cleaner.py
+│   ├── ingestion_pipeline.py
+│   └── scrapers
+│       ├── __init__.py
+│       ├── base.py
+│       ├── confidencial.py
+│       ├── divergentes_scraper.py
+│       ├── laPrensa_scraper.py
+│       └── scraper_template.py
+├── logic
+│   ├── analisis.py
+│   ├── classification.py
+│   └── summary.py
+├── main.py
+├── models
+│   ├── __init__.py
+│   ├── article.py
+│   ├── base.py
+│   ├── classification.py
+│   ├── db_modelos.py
+│   └── user.py
+├── nlp
+│   ├── clasificador.py
+│   ├── embedding.py
+│   ├── entidades.py
+│   └── extractores.py
+├── routes
+│   ├── __init__.py
+│   ├── analysis.py
+│   ├── articles.py
+│   ├── classification_router.py
+│   ├── images.py
+│   ├── logs.py
+│   ├── main.py
+│   ├── resultados.py
+│   └── summaries.py
+├── schemas.py
+├── services
+│   ├── __init__.py
+│   ├── extractores.py
+│   ├── nlp
+│   │   ├── embedding_utils.py
+│   │   └── prompt_utils.py
+│   ├── openai
+│   │   └── openai_client.py
+│   ├── scrapers
+│   │   └── coordinador_scrapers.py
+│   └── test_script.py
+└── utils
+    └── logs.py
+
+13 directories, 44 files

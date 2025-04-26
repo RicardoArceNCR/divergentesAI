@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.services.openai_client import generar_imagen
+from app.services.openai.openai_client import generar_imagen
 
 router = APIRouter()
 

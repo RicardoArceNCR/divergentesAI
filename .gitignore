@@ -1,38 +1,20 @@
-.DS_Store
-
-__pycache__/
-
+# Entornos virtuales
+env/
 .venv/
 
-Archivos .pyc
+# Configuración privada
+.env
 
-.pytest_cache/
-
-Archivos vacíos que no tienen propósito (si un __init__.py no tiene ni imports, ni comentarios, ni inicializaciones, ¡fuera!).
-
-Te paso un .gitignore decente de regalo:
-
-# Python
+# Archivos de compilación de Python
 __pycache__/
 *.py[cod]
-*.so
-*.egg
-*.egg-info/
-dist/
-build/
 
-# macOS
-.DS_Store
-
-# Entornos virtuales
-.venv/
-env/
-venv/
-
-# pytest
+# Caché de pytest
 .pytest_cache/
 
-# Otros
-*.log
-*.sqlite
-*.db
+# Configuración de VS Code (opcional)
+.vscode/
+
+# Logs y datos procesados
+logs/
+data/

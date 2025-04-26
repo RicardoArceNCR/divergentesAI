@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.services.coordinador_scrapers import obtener_urls_home
+from app.services.scrapers.coordinador_scrapers import obtener_urls_home
 from app.logic.analisis import procesar_articulo_completo
 import os
 import json

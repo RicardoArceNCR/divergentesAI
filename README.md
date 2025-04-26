@@ -1,96 +1,88 @@
-🧠 DivergenteRAG
+# DivergenteRAG
 
-DivergenteRAG es un sistema modular para procesamiento, análisis editorial automatizado y generación crítica de contenido periodístico, diseñado para medios independientes y proyectos de investigación. Usa técnicas de NLP, embeddings semánticos y generación con modelos como OpenAI para crear resúmenes, clasificaciones y estructuras editoriales a partir de scraping inteligente.
+Sistema de análisis editorial automatizado con IA para medios independientes.
 
-📁 Estructura del Proyecto
+## 📦 Estructura Principal
 
+- **Scraping:** Recolecta artículos de medios registrados (Divergentes, Confidencial, etc.).
+- **Ingestión:** Limpieza y procesamiento básico de los artículos.
+- **Procesamiento NLP:** Clasificación, extracción de entidades, creación de embeddings semánticos.
+- **Análisis Crítico:** Generación de resúmenes editoriales y análisis asistido por IA.
+- **Exposición API:** Endpoints para consultar resultados, resúmenes, clasificaciones y embeddings.
+
+## 🛠️ Tecnologías
+
+- **Python 3.10+**
+- **FastAPI**
+- **Sentence Transformers**
+- **OpenAI API**
+- **SQLAlchemy**
+- **Docker**
+
+## 📂 Estructura de carpetas
+
+```plaintext
 app/
-├── ingestion/                 # Módulo de scraping y limpieza
-│   ├── ingestion_pipeline.py
-│   ├── cleanners.py
-│   └── coordinador_scraper.py
-│       └── scrapers/
-│           ├── scraper_template.py
-│           ├── divergentes_scraper.py
-│           └── confidencial.py
-│
-├── logic/                     # Núcleo de procesamiento editorial
-│   ├── analisis.py            # Orquesta resumen + clasificación + entidades
-│   ├── classification.py
-│   └── embedding.py
-│
-├── services/                  # Utilidades para generación, APIs y embeddings
-│   ├── openai_client.py       # Invoca OpenAI
-│   ├── prompt_utils.py        # Construye prompts
-│   ├── summaries.py           # Transforma respuestas en textos editoriales
-│   └── embedding_utils.py     # Coordina embeddings locales o remotos
-│
-├── nlp/                       # Modelos NLP locales
-│   ├── embedding.py
-│   ├── entidades.py
-│   └── clasificador.py
-│
-├── models/                    # Definición de modelos Pydantic y DB
-│   ├── article.py
-│   ├── classification.py
-│   ├── db_modelos.py
-│   └── resultados.py
-│
-├── routes/                    # Endpoints FastAPI
-│   ├── articles.py
-│   ├── classification_router.py
-│   └── resultados.py
-│
-├── utils/
-│   └── logs.py                # Logs y helpers
-│
-├── database/
-│   ├── database.py
-│   └── schemas.py
-│
-└── main.py                    # Inicia FastAPI y monta rutas
+  ├── scrapers/               # Scrapers específicos por medio
+  ├── services/
+  │   ├── ingestion_pipeline.py
+  │   ├── embedding_utils.py
+  │   └── coordinador_scrapers.py
+  ├── nlp/
+  │   ├── embedding.py
+  │   ├── clasificador.py
+  │   └── entidades.py
+  ├── logic/
+  │   └── analisis.py
+  ├── routes/
+  │   ├── articles.py
+  │   ├── classification_router.py
+  │   └── resultados.py
+  ├── models/
+  │   ├── article.py
+  │   ├── classification.py
+  │   └── db_modelos.py
+  ├── utils/
+  │   ├── logs.py
+  │   └── schemas.py
+  ├── database.py
+  ├── main.py
 
-⚙️ Instalación
+🚀 Cómo levantar el proyecto
 
-Clona el repositorio:
+# 1. Clonar el repositorio
+git clone https://github.com/tuusuario/tu-repo.git
+cd tu-repo
 
-git clone https://github.com/ricardoarceNCR/divergentesAI.git
-cd divergentesAI
-
-Crea un entorno virtual e instala dependencias:
-
-python -m venv venv
+# 2. Crear entorno virtual
+python3 -m venv venv
 source venv/bin/activate
+
+# 3. Instalar dependencias
 pip install -r requirements.txt
 
-Crea el archivo .env con tus credenciales:
-
-OPENAI_API_KEY=tu_api_key
-
-🚀 Ejecutar en desarrollo
-
+# 4. Ejecutar API
 uvicorn app.main:app --reload
 
-Para probar los endpoints, accede a: http://localhost:8000/docs
+🧠 Funcionalidades principales
+Scrapeo automático de medios.
 
-🧰 Funcionalidades clave
+Clasificación editorial basada en embeddings.
 
-👷️ Scrapers especializados para medios como Divergentes y Confidencial
+Extracción de entidades clave.
 
-🧼 Limpieza automatizada del contenido
+Generación de resúmenes críticos.
 
-🧠 Clasificación semántica, entidades y resumen vía analisis.py
+API REST para consulta de resultados.
 
-📦 Generación editorial vía OpenAI y módulos locales de NLP
+📜 Licencia
+MIT License.
 
-🌟 Embeddings para futuras búsquedas y RAG (Retrieval-Augmented Generation)
+---
 
-🔌 API REST completa con rutas documentadas
+### 🚀 ¿Te gustaría que además te prepare:
+- Un esquema `.drawio` limpio basado en esta propuesta ✅
+- O un diagrama `.svg` / `.png` listo para meter al README ✅
 
-🧪 Pruebas
-
-pytest tests/
-
-(Puedes agregar cobertura con coverage si se requiere producción futura.)
-
-🔭 Roadmap (Propuesto)
+¿Te lo preparo? 🔥  
+(Si quieres, puedo incluirlo en estilo profesional de arquitectura SaaS) 🚀

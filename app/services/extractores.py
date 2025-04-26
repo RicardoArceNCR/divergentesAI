@@ -1,5 +1,5 @@
 from urllib.parse import urlparse, urljoin
-from app.scrapers import SCRAPER_REGISTRY
+from app.ingestion.scrapers import SCRAPER_REGISTRY
 import requests
 from bs4 import BeautifulSoup
 

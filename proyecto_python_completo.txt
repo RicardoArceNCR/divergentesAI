@@ -1,0 +1,1123 @@
+### app//__init__.py ###
+
+### app//__version__.py ###
+__version__ = "0.1.0"
+### app//database.py ###
+# app/database.py
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from app.models.db_modelos import Base  # este es el que define la tabla
+
+SQLALCHEMY_DATABASE_URL = "sqlite:///./basedatos.db"
+
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+)
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# Esta línea crea las tablas si no existen
+Base.metadata.create_all(bind=engine)
+
+### app//ingestion/cleaners/__init__.py ###
+
+### app//ingestion/cleaners/text_cleaner.py ###
+import re
+import unicodedata
+
+def clean_text(text):
+    text = unicodedata.normalize("NFKC", text)
+    text = re.sub(r"\s+", " ", text)
+    text = text.strip()
+    return text
+
+### app//ingestion/ingestion_pipeline.py ###
+from app.ingestion.scrapers.divergentes import DivergentesScraper
+from app.ingestion.cleanners.text_cleaner import clean_text
+import json
+import os
+
+def run_ingestion_guardar(n=5):
+    scraper = DivergentesScraper()
+    urls = scraper.obtener_urls_home()[:n]
+    resultados = []
+
+    for url in urls:
+        try:
+            data = scraper.extraer_contenido(url)
+            data["texto"] = clean_text(data["texto"])  # limpieza adicional
+            data["url"] = url
+            resultados.append(data)
+        except Exception as e:
+            print(f"❌ Error al procesar {url}: {e}")
+
+    os.makedirs("data/processed", exist_ok=True)
+    with open("data/processed/divergentes.json", "w", encoding="utf-8") as f:
+        json.dump(resultados, f, ensure_ascii=False, indent=2)
+
+    print(f"✅ {len(resultados)} artículos guardados.")
+
+if __name__ == "__main__":
+    run_ingestion_guardar()
+
+### app//ingestion/scrapers/__init__.py ###
+from app.ingestion.scrapers.divergentes_scraper import DivergentesScraper
+from app.ingestion.scrapers.laPrensa_scraper import LaPrensaScraper
+from app.ingestion.scrapers.confidencial import ConfidencialScraper
+
+SCRAPER_REGISTRY = {
+    "divergentes": DivergentesScraper(),
+    "laPrensa": LaPrensaScraper(),
+    "confidencial": ConfidencialScraper(),
+}
+
+### app//ingestion/scrapers/base.py ###
+# app/ingestion/scrapers/base.py
+from abc import ABC, abstractmethod
+
+class BaseScraper(ABC):
+    @abstractmethod
+    def obtener_urls_home(self) -> list:
+        pass
+
+    @abstractmethod
+    def extraer_contenido(self, url: str) -> dict:
+        pass
+
+### app//ingestion/scrapers/confidencial.py ###
+from bs4 import BeautifulSoup
+import requests
+from urllib.parse import urljoin
+from app.ingestion.scrapers.base import BaseScraper
+
+class ConfidencialScraper(BaseScraper):
+    def __init__(self, base_url="https://confidencial.digital"):
+        self.base_url = base_url
+
+    def obtener_urls_home(self) -> list:
+        response = requests.get(self.base_url)
+        soup = BeautifulSoup(response.text, "html.parser")
+        urls = set()
+
+        for a in soup.find_all("a", href=True):
+            full_url = urljoin(self.base_url, a["href"])
+            if self.base_url in full_url:
+                urls.add(full_url)
+
+        return [
+            url for url in urls
+            if ("/nacion/" in url or "/politica/" in url)
+            and not any(x in url for x in ["etiqueta", "video", "opinion"])
+        ]
+
+    def extraer_contenido(self, url: str) -> dict:
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        titulo_tag = soup.find("h1")
+        titulo = titulo_tag.get_text(strip=True) if titulo_tag else "Sin título"
+
+        subtitulo_tag = soup.find("h2")
+        subtitulo = subtitulo_tag.get_text(strip=True) if subtitulo_tag else ""
+
+        autor_tag = soup.find("span", class_="autor")
+        autor = autor_tag.get_text(strip=True).replace("Por ", "") if autor_tag else ""
+
+        fecha_tag = soup.find("time")
+        fecha = fecha_tag.get("datetime") if fecha_tag else ""
+
+        contenido_div = soup.find("div", class_="td-post-content") or soup.find("article")
+        if not contenido_div:
+            print(f"⚠️ No se encontró contenido en: {url}")
+            return {}
+
+        parrafos = contenido_div.find_all("p")
+        texto = "\n".join(p.get_text(strip=True) for p in parrafos if p.get_text(strip=True))
+
+        return {
+            "titulo": titulo,
+            "subtitulo": subtitulo,
+            "autor": autor,
+            "fecha": fecha,
+            "texto": texto
+        }
+
+### app//ingestion/scrapers/divergentes_scraper.py ###
+import cloudscraper
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
+from app.ingestion.scrapers.scraper_template import ScraperTemplate
+
+class DivergentesScraper(ScraperTemplate):
+    def __init__(self, base_url="https://www.divergentes.com/"):
+        self.base_url = base_url
+        self.scraper = cloudscraper.create_scraper()
+
+    def obtener_urls_home(self) -> list:
+        response = self.scraper.get(self.base_url)
+        soup = BeautifulSoup(response.text, "html.parser")
+        urls = set()
+
+        for a in soup.find_all("a", href=True):
+            full_url = urljoin(self.base_url, a["href"])
+            if self.base_url in full_url:
+                urls.add(full_url)
+
+        return [
+            url for url in urls
+            if not any(x in url for x in ["etiqueta", "podcast", "opinion", "autor", "#"])
+            and len(url.split("/")) >= 5
+        ]
+
+    def extraer_contenido(self, url: str) -> dict:
+        response = self.scraper.get(url)
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        # Contenido principal
+        contenedor = (
+            soup.find("div", class_="td-post-content")
+            or soup.find("div", class_="entry-content")
+            or soup.find("article")
+        )
+        if contenedor:
+            parrafos = contenedor.find_all("p")
+            texto = "\n".join(
+                p.get_text(strip=True)
+                for p in parrafos
+                if p.get_text(strip=True)
+            )
+        else:
+            print(f"⚠️ No se encontró contenedor de texto en: {url}")
+            texto = ""
+
+        # Título principal
+        titulo = soup.find("meta", property="og:title")
+        titulo = titulo["content"].strip() if titulo else soup.title.string.strip() if soup.title else ""
+
+        # Subtítulo si existe
+        subtitulo = soup.find("h2")
+        subtitulo = subtitulo.get_text(strip=True) if subtitulo else ""
+
+        # Autor y fecha
+        autor = soup.find("meta", attrs={"name": "author"})
+        autor = autor["content"].strip() if autor else ""
+
+        fecha = soup.find("meta", attrs={"property": "article:published_time"})
+        fecha = fecha["content"].strip() if fecha else ""
+
+        return {
+            "titulo": titulo,
+            "subtitulo": subtitulo,
+            "autor": autor,
+            "fecha": fecha,
+            "texto": texto,
+        }
+
+### app//ingestion/scrapers/laPrensa_scraper.py ###
+from bs4 import BeautifulSoup
+import requests
+from app.ingestion.scrapers.base import BaseScraper
+
+class LaPrensaScraper(BaseScraper):
+    def extraer_contenido(self, url: str) -> dict:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        # Título
+        titulo_tag = soup.find("h1", class_="title")
+        titulo = titulo_tag.get_text(strip=True) if titulo_tag else "Sin título"
+
+        # Subtítulo (si existe)
+        subtitulo_tag = soup.find("div", class_="sub-title")
+        subtitulo = subtitulo_tag.get_text(strip=True) if subtitulo_tag else ""
+
+        # Autor
+        autor_tag = soup.find("span", class_="autor")
+        autor = autor_tag.get_text(strip=True).replace("Por ", "") if autor_tag else ""
+
+        # Fecha
+        fecha_tag = soup.find("span", class_="td-post-date")
+        fecha = fecha_tag.get_text(strip=True) if fecha_tag else ""
+
+        # Contenido
+        contenido_div = soup.find("div", class_="td-post-content tagdiv-type")
+        if not contenido_div:
+            print(f"⚠️ No se encontró contenido en: {url}")
+            return {}
+
+        parrafos = contenido_div.find_all("p")
+        texto = "\n".join(p.get_text(strip=True) for p in parrafos if p.get_text(strip=True))
+
+        return {
+            "titulo": titulo,
+            "subtitulo": subtitulo,
+            "autor": autor,
+            "fecha": fecha,
+            "texto": texto
+        }
+
+    def obtener_urls_home(self):
+        # Implementalo o dejalo pasar por ahora
+        return []
+
+### app//ingestion/scrapers/scraper_template.py ###
+# app/ingestion/scrapers/scraper_template.py
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
+from app.ingestion.scrapers.base import BaseScraper
+from typing import List, Dict
+
+class ScraperTemplate(BaseScraper):
+    def __init__(self, base_url: str):
+        self.base_url = base_url
+
+    def obtener_urls_desde_url(self, url: str, n: int = 5) -> List[str]:
+        import requests
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, "html.parser")
+        urls = set()
+
+        for a in soup.find_all("a", href=True):
+            full_url = urljoin(url, a["href"])
+            urls.add(full_url)
+
+        return list(urls)[:n]
+
+    def obtener_urls_home(self, n: int = 5) -> List[str]:
+        return self.obtener_urls_desde_url(self.base_url, n)
+
+    def extraer_contenido(self, url: str) -> Dict[str, str]:
+        import requests
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        titulo = soup.title.string.strip() if soup.title else "Sin título"
+        subtitulo_tag = soup.find("h2", class_="td-post-sub-title")
+        subtitulo = subtitulo_tag.get_text(strip=True) if subtitulo_tag else ""
+
+        autor_tag = soup.find("a", class_="td-post-author-name")
+        autor = autor_tag.get_text(strip=True) if autor_tag else ""
+
+        fecha_tag = soup.find("time", class_="entry-date")
+        fecha = fecha_tag.get("datetime", "") if fecha_tag else ""
+
+        candidatos = [
+            soup.find("div", class_="td-post-content"),
+            soup.find("div", class_="post-content"),
+            soup.find("article"),
+            soup.find("div", class_=lambda x: x and "content" in x)
+        ]
+        contenido = next((c for c in candidatos if c), None)
+
+        if not contenido:
+            print(f"⚠️ No se encontró contenido en: {url}")
+            return {}
+
+        parrafos = contenido.find_all("p")
+        texto = "\n".join(p.get_text(strip=True) for p in parrafos if p.get_text(strip=True))
+
+        return {
+            "titulo": titulo,
+            "subtitulo": subtitulo,
+            "autor": autor,
+            "fecha": fecha,
+            "texto": texto
+        }
+
+### app//logic/analisis.py ###
+from app.services.extractores import extraer_contenido
+from app.nlp.clasificador import clasificar_texto
+from app.nlp.extractores import extraer_entidades
+from app.logic.summary import resumir
+
+def procesar_articulo_completo(url: str) -> dict:
+    """
+    Toma una URL y devuelve un artículo con metadatos, resumen, categorías, entidades y logs de validación.
+    """
+    print(f"🔍 Procesando: {url}")
+    datos = extraer_contenido(url)
+
+    texto = datos.get("texto", "").strip()
+    if not texto or len(texto) < 30:
+        print(f"❌ Texto vacío o demasiado corto para: {url}")
+        return {
+            "url": url,
+            "error": "Texto vacío o muy corto",
+            "datos_raw": datos
+        }
+
+    resultado = {
+        "titulo": datos.get("titulo", "Sin título"),
+        "subtitulo": datos.get("subtitulo", ""),
+        "url": url,
+        "autor": datos.get("autor", ""),
+        "fecha": datos.get("fecha", ""),
+        "texto": texto
+    }
+
+    try:
+        resumen = resumir(texto)
+        resultado["resumen"] = resumen if resumen != "string" else ""
+        print(f"📝 Resumen generado: {resumen[:80]}...")
+    except Exception as e:
+        resultado["resumen"] = ""
+        print(f"⚠️ Error al generar resumen: {e}")
+
+    try:
+        categorias = clasificar_texto(texto)
+        resultado["categorias"] = categorias
+        print(f"📊 Categorías: {categorias}")
+    except Exception as e:
+        resultado["categorias"] = {}
+        print(f"⚠️ Error al clasificar texto: {e}")
+
+    try:
+        entidades = extraer_entidades(texto)
+        resultado["entidades"] = entidades
+        print(f"🏷️ Entidades: {entidades}")
+    except Exception as e:
+        resultado["entidades"] = {}
+        print(f"⚠️ Error al extraer entidades: {e}")
+
+    return resultado
+
+### app//logic/classification.py ###
+
+### app//logic/summary.py ###
+# app/logic/summary.py
+
+def resumir(texto: str) -> str:
+    # Esta es una versión simplificada para pruebas
+    return texto[:300] + "..." if len(texto) > 300 else texto
+
+### app//main.py ###
+from fastapi import FastAPI
+
+from app.routes.articles import router as articles_router
+from app.routes.summaries import router as resumenes_router
+from app.routes.classification_router import router as classification_router  # ✅ corregido
+from app.routes.images import router as imagenes_router
+from app.routes import analysis
+from app.routes.logs import router as logs_router
+
+
+
+from app.logic.summary import resumir
+from app.services.openai.openai_client import generar_imagen
+
+app = FastAPI(
+    title="DivergenteRAG",
+    description="API para análisis editorial automatizado",
+    version="0.1.0",
+)
+
+# Registro de rutas
+app.include_router(articles_router)
+app.include_router(resumenes_router)
+app.include_router(classification_router)
+app.include_router(imagenes_router)
+app.include_router(analysis.router)
+app.include_router(logs_router)
+
+
+from fastapi import FastAPI
+from app.routes import analysis, articles, classification_router, summaries
+
+def create_app() -> FastAPI:
+    app = FastAPI(title="Tu API Mamadísima")
+    
+    app.include_router(analysis.router)
+    app.include_router(articles.router)
+    app.include_router(classification_router.router)
+    app.include_router(summaries.router)
+
+    return app
+
+app = create_app()
+
+### app//models/__init__.py ###
+
+### app//models/article.py ###
+from pydantic import BaseModel, Field, validator, HttpUrl
+from typing import Optional, List
+
+
+# 🧾 Entradas simples
+
+class URLInput(BaseModel):
+    url: HttpUrl = Field(..., description="URL del artículo o recurso a procesar")
+
+class TextoInput(BaseModel):
+    texto: str = Field(..., description="Texto libre para análisis o clasificación")
+
+class TextoResumenInput(BaseModel):
+    texto: str = Field(
+        ...,
+        example="El presidente fue acusado de soborno...",
+        description="Texto a resumir"
+    )
+
+
+# 🧠 Salidas generales
+
+class TextoOutput(BaseModel):
+    resumen: str = Field(..., description="Resumen generado del texto enviado")
+
+
+# 📰 Artículo base
+
+class Articulo(BaseModel):
+    titulo: str = Field(..., description="Título principal del artículo")
+    resumen: Optional[str] = Field(None, description="Resumen automático del contenido")
+    url: HttpUrl = Field(..., description="Enlace original del artículo")
+    autor: Optional[str] = Field(None, description="Nombre del autor (si está disponible)")
+    fecha: Optional[str] = Field(None, description="Fecha de publicación (si está disponible)")
+    embedding: Optional[List[float]] = Field(
+        None,
+        description="Vector de representación semántica del artículo",
+        example=[0.123, -0.456, 0.789]
+    )
+
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "titulo": "Protestas sacuden la capital",
+                "resumen": "Se registraron protestas masivas...",
+                "url": "https://ejemplo.com/articulo",
+                "autor": "Juan Pérez",
+                "fecha": "2025-04-20",
+                "embedding": [0.123, -0.456, 0.789]
+            }
+        }
+
+
+# 🧩 Artículo extendido
+
+class ArticuloExtendido(Articulo):
+    subtitulo: Optional[str] = Field(None, description="Subtítulo del artículo")
+    texto: str = Field(..., description="Cuerpo completo del artículo")
+
+    links_relacionados: Optional[List[str]] = Field(default_factory=list, description="Enlaces internos del sitio")
+    links_externos: Optional[List[str]] = Field(default_factory=list, description="Enlaces a otros medios o recursos")
+    documentos: Optional[List[str]] = Field(default_factory=list, description="Documentos enlazados (PDF, DOCX, etc.)")
+    apis: Optional[List[str]] = Field(default_factory=list, description="Enlaces relacionados con APIs detectadas")
+    anuncios: Optional[List[str]] = Field(default_factory=list, description="Fragmentos de texto identificados como anuncios")
+    colores: Optional[List[str]] = Field(default_factory=list, description="Colores CSS identificados en estilos inline")
+
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "titulo": "Protestas sacuden la capital",
+                "subtitulo": "Grupos civiles se enfrentan con la policía",
+                "texto": "El conflicto comenzó luego de...",
+                "resumen": "Se registraron protestas masivas...",
+                "url": "https://ejemplo.com/articulo",
+                "autor": "Juan Pérez",
+                "fecha": "2025-04-20",
+                "links_relacionados": ["https://ejemplo.com/relacionado1"],
+                "links_externos": ["https://medioexterno.com/nota"],
+                "documentos": ["https://ejemplo.com/archivo.pdf"],
+                "apis": ["https://api.ejemplo.com/endpoint"],
+                "anuncios": ["Publicidad 1"],
+                "colores": ["#123456", "#abcdef"],
+                "embedding": [0.123, -0.456, 0.789]
+            }
+        }
+
+### app//models/base.py ###
+
+### app//models/classification.py ###
+from pydantic import BaseModel, Field
+from typing import Dict
+
+class ClassificationOutput(BaseModel):
+    categorias: Dict[str, float] = Field(
+        ...,
+        example={
+            "política": 0.95,
+            "corrupción": 0.8,
+            "derechos_humanos": 0.5
+        },
+        description="Temas detectados en el texto con su nivel de relevancia"
+    )
+
+### app//models/db_modelos.py ###
+# app/modelos/db_modelos.py
+from sqlalchemy import Column, Integer, String, Text, DateTime, JSON
+from sqlalchemy.ext.declarative import declarative_base
+from datetime import datetime
+
+Base = declarative_base()
+
+class ResultadoProcesado(Base):
+    __tablename__ = "resultados"
+
+    id = Column(Integer, primary_key=True, index=True)
+    url = Column(String)
+    titulo = Column(String)
+    resumen = Column(Text)
+    categorias = Column(JSON)  # ej: {"politica": 0.95}
+    fecha_procesado = Column(DateTime, default=datetime.utcnow)
+
+### app//models/user.py ###
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional
+
+class UserBase(BaseModel):
+    username: str = Field(..., description="Nombre de usuario único")
+    email: EmailStr = Field(..., description="Correo electrónico válido")
+
+class UserCreate(UserBase):
+    password: str = Field(..., min_length=6, description="Contraseña segura (mínimo 6 caracteres)")
+
+class UserLogin(BaseModel):
+    email: EmailStr = Field(..., description="Correo electrónico del usuario")
+    password: str = Field(..., description="Contraseña del usuario")
+
+class UserResponse(UserBase):
+    id: int = Field(..., description="ID único del usuario")
+    is_active: bool = Field(..., description="Indica si el usuario está activo")
+
+    class Config:
+        from_attributes = True
+
+### app//nlp/clasificador.py ###
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub")
+
+from sentence_transformers import SentenceTransformer, util
+
+modelo = SentenceTransformer("all-MiniLM-L6-v2")
+
+CATEGORIAS = {
+    "corrupción": "Este texto trata sobre corrupción política o institucional.",
+    "política": "Este texto trata sobre decisiones gubernamentales, partidos políticos o procesos electorales.",
+    "violencia": "Este texto menciona represión, asesinatos, uso de la fuerza o violencia policial.",
+    "economía": "Este texto trata sobre dinero, finanzas, impuestos o economía del país.",
+    "derechos humanos": "Este texto trata sobre violaciones a los derechos fundamentales.",
+    "internacional": "Este texto se relaciona con relaciones exteriores o actores internacionales."
+}
+
+def clasificar_texto(texto: str, top_n: int = 3) -> dict:
+    texto_emb = modelo.encode(texto, convert_to_tensor=True)
+    scores = {}
+    for categoria, descripcion in CATEGORIAS.items():
+        desc_emb = modelo.encode(descripcion, convert_to_tensor=True)
+        score = util.cos_sim(texto_emb, desc_emb).item()
+        scores[categoria] = round(score, 3)
+
+    return dict(sorted(scores.items(), key=lambda x: x[1], reverse=True)[:top_n])
+
+### app//nlp/embedding.py ###
+from sentence_transformers import SentenceTransformer
+import json
+
+modelo = SentenceTransformer("all-MiniLM-L6-v2")
+
+def generar_embedding(texto: str) -> list:
+    return modelo.encode(texto).tolist()
+
+def serializar_embedding(embedding: list) -> str:
+    return json.dumps(embedding)
+
+def deserializar_embedding(embedding_str: str) -> list:
+    return json.loads(embedding_str)
+
+### app//nlp/entidades.py ###
+import spacy
+
+nlp = spacy.load("es_core_news_sm")
+
+def extraer_entidades(texto: str) -> list:
+    doc = nlp(texto)
+    return [{"texto": ent.text, "etiqueta": ent.label_} for ent in doc.ents]
+
+### app//nlp/extractores.py ###
+import spacy
+nlp = spacy.load("es_core_news_md")
+
+def extraer_entidades(texto: str) -> dict:
+    doc = nlp(texto)
+    entidades = {"PERSONA": [], "ORG": [], "LOC": []}
+    for ent in doc.ents:
+        if ent.label_ in entidades:
+            entidades[ent.label_].append(ent.text)
+    return {k: list(set(v)) for k, v in entidades.items()}
+### app//routes/__init__.py ###
+
+### app//routes/analysis.py ###
+from fastapi import APIRouter
+from app.services.scrapers.coordinador_scrapers import obtener_urls_home
+from app.logic.analisis import procesar_articulo_completo
+import os
+import json
+from datetime import datetime
+
+router = APIRouter()
+
+@router.get("/articulos/analizados", tags=["Análisis completo"])
+def analizar_articulos(n: int = 5):
+    urls = obtener_urls_home(n=n)
+    resultados = []
+
+    for url in urls:
+        print(f"📰 Analizando: {url}")
+        resultado = procesar_articulo_completo(url)
+        if resultado:
+            resultados.append(resultado)
+
+            # Guardar log del resultado
+            nombre_archivo = url.strip("/").split("/")[-1][:50] or "sin-nombre"
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            ruta = f"logs/articulos/{nombre_archivo}-{timestamp}.json"
+
+            os.makedirs("logs/articulos", exist_ok=True)
+            with open(ruta, "w") as f:
+                json.dump(resultado, f, indent=2, ensure_ascii=False)
+
+    return resultados
+
+### app//routes/articles.py ###
+# Standard Library
+import logging
+
+# FastAPI
+from fastapi import APIRouter
+
+# Internal Logic
+from app.logic.summary import resumir
+from app.services.scrapers.coordinador_scrapers import obtener_urls_home
+from app.services.extractores import extraer_contenido
+from app.services.nlp.embedding_utils import generar_embedding
+
+# Models
+from app.models.article import Articulo, ArticuloExtendido
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+def procesar_url(url: str, extendido: bool = False):
+    try:
+        data = extraer_contenido(url)
+        resumen = resumir(data["texto"])
+        embedding = generar_embedding(data["texto"])
+
+        if extendido:
+            return ArticuloExtendido(
+                titulo=data.get("titulo", ""),
+                subtitulo=data.get("subtitulo", ""),
+                texto=data.get("texto", ""),
+                resumen=resumen,
+                url=url,
+                autor=data.get("autor", ""),
+                fecha=data.get("fecha", ""),
+                links_relacionados=data.get("links_relacionados", []),
+                links_externos=data.get("links_externos", []),
+                documentos=data.get("documentos", []),
+                apis=data.get("apis", []),
+                anuncios=data.get("anuncios", []),
+                colores=data.get("colores", []),
+                embedding=embedding
+            )
+        else:
+            return Articulo(
+                titulo=data["titulo"],
+                resumen=resumen,
+                url=url,
+                autor=data.get("autor", ""),
+                fecha=data.get("fecha", ""),
+                embedding=embedding
+            )
+    except Exception as e:
+        logger.warning(f"Error con {url}: {e}")
+        return None
+
+@router.get("/articulos", response_model=list[Articulo], tags=["Artículos"], summary="Obtener artículos resumidos con embedding")
+def obtener_articulos(n: int = 5):
+    urls = obtener_urls_home()
+    return [a for a in (procesar_url(url) for url in urls[:n]) if a]
+
+@router.get("/articulos/extendidos", response_model=list[ArticuloExtendido])
+def articulos_ext(n: int = 5):
+    urls = obtener_urls_home()
+    return [a for a in (procesar_url(url, extendido=True) for url in urls[:n]) if a]
+
+### app//routes/classification_router.py ###
+from fastapi import APIRouter
+from app.models.article import TextoResumenInput
+from app.models.classification import ClassificationOutput
+from app.nlp.clasificador import clasificar_texto  # <-- clasificación temática
+from app.nlp.extractores import extraer_entidades  # <-- entidades con spaCy
+
+router = APIRouter()
+
+@router.post(
+    "/clasificar",
+    response_model=ClassificationOutput,
+    tags=["Clasificación"],
+    summary="Clasificar texto por temática",
+    responses={
+        200: {
+            "description": "Resultado de clasificación por temática",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "categorias": {
+                            "política": 0.75,
+                            "corrupción": 0.33,
+                            "derechos_humanos": 0.5
+                        }
+                    }
+                }
+            }
+        }
+    }
+)
+def clasificar(data: TextoResumenInput):
+    """
+    Clasifica un texto recibido por temática utilizando embeddings semánticos.
+    """
+    resultado = clasificar_texto(data.texto)
+    return {"categorias": resultado}
+
+
+@router.post(
+    "/entidades",
+    tags=["Clasificación"],
+    summary="Extraer entidades nombradas del texto",
+    responses={
+        200: {
+            "description": "Entidades extraídas: personas, organizaciones y lugares",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "entidades": {
+                            "PERSONA": ["Daniel Ortega", "Rosario Murillo"],
+                            "ORG": ["Gobierno de Nicaragua"],
+                            "LOC": ["Managua"]
+                        }
+                    }
+                }
+            }
+        }
+    }
+)
+def entidades(data: TextoResumenInput):
+    """
+    Extrae entidades nombradas del texto utilizando spaCy (personas, organizaciones, lugares).
+    """
+    resultado = extraer_entidades(data.texto)
+    return {"entidades": resultado}
+
+### app//routes/images.py ###
+from fastapi import APIRouter
+from app.services.openai.openai_client import generar_imagen
+
+router = APIRouter()
+
+@router.get("/imagen", tags=["Imágenes"], summary="Generar imagen desde prompt")
+def obtener_imagen(prompt: str):
+    url = generar_imagen(prompt)
+    return {"imagen_url": url}
+
+### app//routes/logs.py ###
+from fastapi import APIRouter
+import os
+import json
+from app.models.article import ArticuloExtendido  # usar modelo extendido
+
+router = APIRouter()
+
+@router.get("/logs/resumen", response_model=list[ArticuloExtendido], tags=["Logs"])
+def resumen_logs(n: int = 10):
+    carpeta = "logs/articulos"
+    if not os.path.exists(carpeta):
+        return []
+
+    files = sorted(os.listdir(carpeta), reverse=True)[:n]
+    resultados = []
+
+    for file in files:
+        path = os.path.join(carpeta, file)
+        with open(path, encoding="utf-8") as f:
+            try:
+                datos = json.load(f)
+                resultados.append(datos)
+            except Exception as e:
+                print(f"⚠️ Error al leer {file}: {e}")
+
+    return resultados
+
+### app//routes/main.py ###
+from app.routes.resultados import router as resultados_router
+
+app.include_router(resultados_router)
+
+### app//routes/resultados.py ###
+# app/rutas/resultados.py
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.models.db_modelos import ResultadoProcesado
+from app.schemas import ResultadoCreate  # lo definimos abajo
+
+router = APIRouter()
+
+@router.post("/resultados")
+def guardar_resultado(data: ResultadoCreate, db: Session = Depends(get_db)):
+    nuevo = ResultadoProcesado(**data.dict())
+    db.add(nuevo)
+    db.commit()
+    db.refresh(nuevo)
+    return nuevo
+
+@router.get("/resultados")
+def listar_resultados(db: Session = Depends(get_db)):
+    return db.query(ResultadoProcesado).all()
+
+### app//routes/summaries.py ###
+from fastapi import APIRouter
+from app.logic.summary import resumir
+from app.schemas import TextoResumenInput, TextoOutput
+
+router = APIRouter()
+
+@router.post("/resumir", response_model=TextoOutput, tags=["Resúmenes"], summary="Resumir texto enviado")
+def resumir_texto(data: TextoResumenInput):
+    resumen = resumir(data.texto)
+    return {"resumen": resumen}
+
+### app//schemas.py ###
+from pydantic import BaseModel
+from typing import Optional, Dict
+
+class TextoResumenInput(BaseModel):
+    texto: str
+    titulo: Optional[str] = "Texto sin título"
+    url: Optional[str] = "manual"
+
+class TextoOutput(BaseModel):
+    resumen: str
+
+### app//services/__init__.py ###
+
+### app//services/extractores.py ###
+from urllib.parse import urlparse, urljoin
+from app.ingestion.scrapers import SCRAPER_REGISTRY
+import requests
+from bs4 import BeautifulSoup
+
+def extraer_contenido(url: str) -> dict:
+    dominio = urlparse(url).netloc.lower()
+
+    for nombre, scraper in SCRAPER_REGISTRY.items():
+        if nombre.lower() in dominio:
+            print(f"🧠 usando scraper personalizado: {nombre}")
+            return scraper.extraer_contenido(url)
+
+    print("🧠 usando extractor genérico")
+    return extractor_generico(url)
+
+
+def extractor_generico(url: str) -> dict:
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, "html.parser")
+    dominio = urlparse(url).netloc
+
+    contenido = soup.select_one("article") or soup.select_one("div.entry-content") or soup
+    cuerpo = "\n".join([p.get_text(strip=True) for p in contenido.find_all("p")]) if contenido else ""
+
+    def texto_de(selector, attr=None):
+        el = soup.select_one(selector)
+        if el:
+            return el.get(attr) if attr else el.get_text(strip=True)
+        return ""
+
+    def extraer_links(externos=False):
+        links = []
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if externos:
+                if dominio not in href and href.startswith("http"):
+                    links.append(href)
+            else:
+                if dominio in href or href.startswith("/"):
+                    links.append(urljoin(url, href))
+        return list(set(links))
+
+    def extraer_colores():
+        colores = set()
+        for tag in soup.find_all(style=True):
+            estilo = tag["style"]
+            for parte in estilo.split(";"):
+                if "color" in parte:
+                    try:
+                        colores.add(parte.split(":")[1].strip())
+                    except IndexError:
+                        continue
+        return list(colores)
+
+    def extraer_documentos():
+        return [a["href"] for a in soup.find_all("a", href=True) if any(a["href"].endswith(ext) for ext in [".pdf", ".docx", ".xlsx"])]
+
+    def extraer_apis():
+        return [a["href"] for a in soup.find_all("a", href=True) if "api" in a["href"]]
+
+    def extraer_anuncios():
+        return [div.text.strip() for div in soup.find_all(True, class_=lambda c: c and "ad" in c.lower())]
+
+    titulo = texto_de("h1")
+    subtitulo = texto_de("h2")
+    autor = texto_de(".author") or texto_de('[name=author]', attr="content")
+    fecha = texto_de("time", attr="datetime") or texto_de("meta[name=date]", attr="content")
+
+    return {
+        "titulo": titulo,
+        "subtitulo": subtitulo,
+        "autor": autor,
+        "fecha": fecha,
+        "texto": cuerpo,
+        "url": url,
+        "links_relacionados": extraer_links(externos=False),
+        "links_externos": extraer_links(externos=True),
+        "documentos": extraer_documentos(),
+        "apis": extraer_apis(),
+        "anuncios": extraer_anuncios(),
+        "colores": extraer_colores()
+    }
+
+### app//services/nlp/embedding_utils.py ###
+from sentence_transformers import SentenceTransformer
+import json
+
+modelo = SentenceTransformer("all-MiniLM-L6-v2")
+
+def generar_embedding(texto: str) -> list:
+    """Devuelve un embedding como lista de floats"""
+    return modelo.encode(texto).tolist()
+
+def serializar_embedding(embedding: list) -> str:
+    """Convierte la lista de floats a un string JSON"""
+    return json.dumps(embedding)
+
+def deserializar_embedding(embedding_str: str) -> list:
+    """Convierte el string JSON a lista de floats"""
+    return json.loads(embedding_str)
+
+### app//services/nlp/prompt_utils.py ###
+def clasificar_texto(texto: str) -> dict:
+    # Simulación simple basada en palabras clave
+    categorias = {
+        "politica": ["gobierno", "presidente", "elección", "diputado"],
+        "corrupcion": ["soborno", "lavado", "malversación"],
+        "derechos_humanos": ["represión", "protesta", "exilio", "presos"],
+    }
+
+    resultado = {}
+    texto_lower = texto.lower()
+    for categoria, palabras in categorias.items():
+        resultado[categoria] = sum(p in texto_lower for p in palabras) / len(palabras)
+
+    return resultado
+
+### app//services/openai/openai_client.py ###
+import openai
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+openai.api_key = os.getenv("OPENAI_API_KEY")
+print("🔐 API Key (inicio parcial):", openai.api_key[:8])
+
+def generar_imagen(prompt: str) -> str:
+    """
+    Genera una imagen a partir de un prompt usando OpenAI DALL·E.
+
+    Args:
+        prompt (str): Texto descriptivo para generar la imagen.
+
+    Returns:
+        str: URL de la imagen generada o un placeholder si falla.
+    """
+    if not prompt or not isinstance(prompt, str):
+        raise ValueError("El prompt debe ser un string no vacío.")
+
+    try:
+        response = openai.images.generate(
+            model="dall-e-3",  # o "dall-e-2" si tu cuenta no tiene acceso
+            prompt=prompt,
+            size="1024x1024",
+            quality="standard",
+            n=1,
+        )
+        return response.data[0].url
+    except Exception as e:
+        print(f"❌ Error al generar imagen: {e}")
+        return "https://via.placeholder.com/1024?text=Error+al+generar+imagen"
+if os.getenv("DEBUG") == "1":
+    print("🔐 API Key (inicio parcial):", openai.api_key[:8])
+
+### app//services/scrapers/coordinador_scrapers.py ###
+from app.ingestion.scrapers.divergentes_scraper import DivergentesScraper
+
+# Registro global de scrapers
+SCRAPER_REGISTRY = {
+    "divergentes": DivergentesScraper()
+}
+
+def obtener_urls_home(n=5) -> list[str]:
+    """
+    Itera sobre los scrapers registrados y devuelve una lista combinada de URLs de artículos.
+    """
+    urls = []
+
+    for nombre, scraper in SCRAPER_REGISTRY.items():
+        try:
+            urls += scraper.obtener_urls_home()[:n]
+        except Exception as e:
+            print(f"❌ Error al obtener URLs de {nombre}: {e}")
+
+    return urls
+
+### app//services/test_script.py ###
+
+### app//utils/logs.py ###
+import os
+import json
+from tabulate import tabulate
+
+def resumen_logs(n: int = 10):
+    carpeta = "logs/articulos"
+    if not os.path.exists(carpeta):
+        print("⚠️ No hay artículos procesados todavía.")
+        return
+
+    files = sorted(os.listdir(carpeta), reverse=True)
+    data = []
+
+    for file in files[:n]:
+        path = os.path.join(carpeta, file)
+        with open(path, encoding="utf-8") as f:
+            art = json.load(f)
+            data.append([
+                art.get("titulo", "Sin título"),
+                art.get("fecha", ""),
+                art.get("autor", ""),
+                "🟢" if art.get("resumen") else "❌",
+                len(art.get("texto", "")),
+                ", ".join(art.get("categorias", {}).keys())
+            ])
+
+    print(tabulate(data, headers=["Título", "Fecha", "Autor", "Resumen", "Longitud", "Categorías"]))
+
