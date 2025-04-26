@@ -333,9 +333,9 @@ class ScraperTemplate(BaseScraper):
         }
 
 ### app//logic/analisis.py ###
-from app.services.contenido_extractor import extraer_contenido
+from app.services.scraper_extractor import extraer_contenido
 from app.nlp.clasificador import clasificar_texto
-from app.nlp.entidades_extractor import extraer_entidades
+from app.nlp.entidades import extraer_entidades
 from app.logic.summary import resumir
 
 def procesar_articulo_completo(url: str) -> dict:
@@ -697,8 +697,8 @@ from fastapi import APIRouter
 # Internal Logic
 from app.logic.summary import resumir
 from app.services.scrapers.coordinador_scrapers import obtener_urls_home
-from app.services.contenido_extractor import extraer_contenido
-from app.services.nlp.embedding_utils import generar_embedding
+from app.services.scraper_extractor import extraer_contenido
+from app.services.nlp_utils.embedding_utils import generar_embedding
 
 # Models
 from app.models.article import Articulo, ArticuloExtendido
@@ -757,7 +757,7 @@ from fastapi import APIRouter
 from app.models.article import TextoResumenInput
 from app.models.classification import ClassificationOutput
 from app.nlp.clasificador import clasificar_texto  # <-- clasificación temática
-from app.nlp.entidades_extractor import extraer_entidades  # <-- entidades con spaCy
+from app.nlp.entidades import extraer_entidades
 
 router = APIRouter()
 
@@ -906,6 +906,40 @@ class TextoOutput(BaseModel):
 
 ### app//services/__init__.py ###
 
+### app//services/nlp_utils/embedding_utils.py ###
+from sentence_transformers import SentenceTransformer
+import json
+
+modelo = SentenceTransformer("all-MiniLM-L6-v2")
+
+def generar_embedding(texto: str) -> list:
+    """Devuelve un embedding como lista de floats"""
+    return modelo.encode(texto).tolist()
+
+def serializar_embedding(embedding: list) -> str:
+    """Convierte la lista de floats a un string JSON"""
+    return json.dumps(embedding)
+
+def deserializar_embedding(embedding_str: str) -> list:
+    """Convierte el string JSON a lista de floats"""
+    return json.loads(embedding_str)
+
+### app//services/nlp_utils/prompt_utils.py ###
+def clasificar_texto(texto: str) -> dict:
+    # Simulación simple basada en palabras clave
+    categorias = {
+        "politica": ["gobierno", "presidente", "elección", "diputado"],
+        "corrupcion": ["soborno", "lavado", "malversación"],
+        "derechos_humanos": ["represión", "protesta", "exilio", "presos"],
+    }
+
+    resultado = {}
+    texto_lower = texto.lower()
+    for categoria, palabras in categorias.items():
+        resultado[categoria] = sum(p in texto_lower for p in palabras) / len(palabras)
+
+    return resultado
+
 ### app//services/openai/openai_client.py ###
 import openai
 import os
@@ -944,7 +978,7 @@ def generar_imagen(prompt: str) -> str:
 if os.getenv("DEBUG") == "1":
     print("🔐 API Key (inicio parcial):", openai.api_key[:8])
 
-### app//services/scraper_extractores.py ###
+### app//services/scraper_extractor.py ###
 from urllib.parse import urlparse, urljoin
 from app.ingestion.scrapers import SCRAPER_REGISTRY
 import requests
@@ -1052,40 +1086,6 @@ def obtener_urls_home(n=5) -> list[str]:
     return urls
 
 ### app//services/test_script.py ###
-
-### app//services/utils_nlp/embedding_utils.py ###
-from sentence_transformers import SentenceTransformer
-import json
-
-modelo = SentenceTransformer("all-MiniLM-L6-v2")
-
-def generar_embedding(texto: str) -> list:
-    """Devuelve un embedding como lista de floats"""
-    return modelo.encode(texto).tolist()
-
-def serializar_embedding(embedding: list) -> str:
-    """Convierte la lista de floats a un string JSON"""
-    return json.dumps(embedding)
-
-def deserializar_embedding(embedding_str: str) -> list:
-    """Convierte el string JSON a lista de floats"""
-    return json.loads(embedding_str)
-
-### app//services/utils_nlp/prompt_utils.py ###
-def clasificar_texto(texto: str) -> dict:
-    # Simulación simple basada en palabras clave
-    categorias = {
-        "politica": ["gobierno", "presidente", "elección", "diputado"],
-        "corrupcion": ["soborno", "lavado", "malversación"],
-        "derechos_humanos": ["represión", "protesta", "exilio", "presos"],
-    }
-
-    resultado = {}
-    texto_lower = texto.lower()
-    for categoria, palabras in categorias.items():
-        resultado[categoria] = sum(p in texto_lower for p in palabras) / len(palabras)
-
-    return resultado
 
 ### app//utils/logs.py ###
 import os
