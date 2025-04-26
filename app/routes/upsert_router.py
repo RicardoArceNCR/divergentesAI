@@ -1,12 +1,12 @@
 # app/routes/upsert_router.py
 from fastapi import APIRouter
-from app.services.rag_query_service import agregar_articulo_a_chroma
-from app.models.schemas import TextoResumenInput
+from app.services.rag_query_services import agregar_articulo_a_chroma
+from app.models.schemas import ResumenInput
 
 router = APIRouter()
 
 @router.post("/upsert", tags=["RAG"], summary="Agregar artículo manualmente")
-def insertar_articulo(data: TextoResumenInput):
+def insertar_articulo(data: ResumenInput):
     """
     Permite agregar un nuevo artículo a la base RAG enviando título, texto y url.
     """

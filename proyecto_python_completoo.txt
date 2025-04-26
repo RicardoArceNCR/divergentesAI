@@ -26,40 +26,33 @@ def get_db():
 # Esta línea crea las tablas si no existen
 Base.metadata.create_all(bind=engine)
 
+### app//database/__init__.py ###
+
 ### app//database/chroma_db.py ###
-# app/database/chroma_db.py
 import chromadb
 from chromadb.config import Settings
 
-# Configuración para que guarde la base localmente
-chroma_client = chromadb.Client(
-    Settings(
-        chroma_db_impl="duckdb+parquet",
-        persist_directory="./data/chromadb"  # Carpeta donde se guardará tu base
+try:
+    chroma_client = chromadb.Client(
+        Settings(
+            chroma_db_impl="duckdb+parquet",
+            persist_directory="./data/chromadb"
+        )
     )
-)
+except Exception as e:
+    chroma_client = None
+    print(f"⚠️ Error inicializando Chroma: {e}")
 
-# Crear o acceder a una colección
 def get_or_create_collection(collection_name="articulos"):
-    collection = chroma_client.get_or_create_collection(name=collection_name)
-    return collection
+    if chroma_client is None:
+        raise RuntimeError("Chroma Client no está disponible.")
+    return chroma_client.get_or_create_collection(name=collection_name)
 
-# Insertar documentos nuevos
 def insert_documents(documents: list, ids: list, metadatas: list):
-    """
-    documents: lista de textos
-    ids: lista de IDs únicos
-    metadatas: lista de diccionarios de metadatos (opcional pero recomendado)
-    """
     collection = get_or_create_collection()
-    collection.add(
-        documents=documents,
-        ids=ids,
-        metadatas=metadatas
-    )
-    chroma_client.persist()  # Guarda cambios
+    collection.add(documents=documents, ids=ids, metadatas=metadatas)
+    chroma_client.persist()
 
-# Buscar documentos similares
 def query_similar_documents(query_text: str, n_results: int = 5):
     collection = get_or_create_collection()
     results = collection.query(
@@ -645,6 +638,33 @@ class ResultadoProcesado(Base):
 ### app//models/entities.py ###
 
 ### app//models/schemas.py ###
+# app/models/schemas.py
+
+from pydantic import BaseModel
+from typing import List, Optional, Dict
+
+# 📄 Para insertar artículos manualmente a Chroma
+class ArticleInput(BaseModel):
+    id: str
+    texto: str
+    metadatos: Optional[Dict[str, str]] = None
+
+# 📄 Para consultar artículos similares (query RAG)
+class QueryInput(BaseModel):
+    pregunta: str
+    n_resultados: Optional[int] = 5
+
+# 📄 Para resumir un texto
+class ResumenInput(BaseModel):
+    texto: str
+
+# 📄 Para clasificar un texto
+class ClasificacionInput(BaseModel):
+    texto: str
+
+# 📄 Para extraer entidades de un texto
+class EntidadesInput(BaseModel):
+    texto: str
 
 ### app//models/user.py ###
 from pydantic import BaseModel, EmailStr, Field
@@ -972,13 +992,13 @@ def listar_resultados(db: Session = Depends(get_db)):
 ### app//routes/resumen_router.py ###
 # app/routes/resumen_router.py
 from fastapi import APIRouter
-from app.models.schemas import TextoResumenInput, TextoOutput
+from app.models.schemas import ResumenInput
 from app.logic.summary import resumir
 
 router = APIRouter()
 
-@router.post("/resumir", response_model=TextoOutput, tags=["Resúmenes"], summary="Resumir un texto")
-def resumir_texto(data: TextoResumenInput):
+@router.post("/resumir", tags=["Resúmenes"], summary="Resumir un texto")
+def ResumenInput(data: ResumenInput):
     """
     Genera un resumen básico del texto proporcionado.
     """
@@ -1000,13 +1020,13 @@ def resumir_texto(data: TextoResumenInput):
 ### app//routes/upsert_router.py ###
 # app/routes/upsert_router.py
 from fastapi import APIRouter
-from app.services.rag_query_service import agregar_articulo_a_chroma
-from app.models.schemas import TextoResumenInput
+from app.services.rag_query_services import agregar_articulo_a_chroma
+from app.models.schemas import ResumenInput
 
 router = APIRouter()
 
 @router.post("/upsert", tags=["RAG"], summary="Agregar artículo manualmente")
-def insertar_articulo(data: TextoResumenInput):
+def insertar_articulo(data: ResumenInput):
     """
     Permite agregar un nuevo artículo a la base RAG enviando título, texto y url.
     """

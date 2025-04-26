@@ -1,36 +1,27 @@
-# app/database/chroma_db.py
 import chromadb
 from chromadb.config import Settings
 
-# Configuración para que guarde la base localmente
-chroma_client = chromadb.Client(
-    Settings(
-        chroma_db_impl="duckdb+parquet",
-        persist_directory="./data/chromadb"  # Carpeta donde se guardará tu base
+try:
+    chroma_client = chromadb.Client(
+        Settings(
+            chroma_db_impl="duckdb+parquet",
+            persist_directory="./data/chromadb"
+        )
     )
-)
+except Exception as e:
+    chroma_client = None
+    print(f"⚠️ Error inicializando Chroma: {e}")
 
-# Crear o acceder a una colección
 def get_or_create_collection(collection_name="articulos"):
-    collection = chroma_client.get_or_create_collection(name=collection_name)
-    return collection
+    if chroma_client is None:
+        raise RuntimeError("Chroma Client no está disponible.")
+    return chroma_client.get_or_create_collection(name=collection_name)
 
-# Insertar documentos nuevos
 def insert_documents(documents: list, ids: list, metadatas: list):
-    """
-    documents: lista de textos
-    ids: lista de IDs únicos
-    metadatas: lista de diccionarios de metadatos (opcional pero recomendado)
-    """
     collection = get_or_create_collection()
-    collection.add(
-        documents=documents,
-        ids=ids,
-        metadatas=metadatas
-    )
-    chroma_client.persist()  # Guarda cambios
+    collection.add(documents=documents, ids=ids, metadatas=metadatas)
+    chroma_client.persist()
 
-# Buscar documentos similares
 def query_similar_documents(query_text: str, n_results: int = 5):
     collection = get_or_create_collection()
     results = collection.query(
