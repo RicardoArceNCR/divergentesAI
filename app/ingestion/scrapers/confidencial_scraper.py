@@ -1,7 +1,7 @@
 from bs4 import BeautifulSoup
 import requests
 from urllib.parse import urljoin
-from app.ingestion.scrapers.base import BaseScraper
+from app.ingestion.scrapers.base_scraper import BaseScraper
 
 class ConfidencialScraper(BaseScraper):
     def __init__(self, base_url="https://confidencial.digital"):

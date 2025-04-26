@@ -1,7 +1,7 @@
 # app/ingestion/scrapers/scraper_template.py
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-from app.ingestion.scrapers.base import BaseScraper
+from app.ingestion.scrapers.base_scraper import BaseScraper
 from typing import List, Dict
 
 class ScraperTemplate(BaseScraper):

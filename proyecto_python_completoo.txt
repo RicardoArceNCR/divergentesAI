@@ -26,6 +26,57 @@ def get_db():
 # Esta línea crea las tablas si no existen
 Base.metadata.create_all(bind=engine)
 
+### app//database/chroma_db.py ###
+# app/database/chroma_db.py
+import chromadb
+from chromadb.config import Settings
+
+# Configuración para que guarde la base localmente
+chroma_client = chromadb.Client(
+    Settings(
+        chroma_db_impl="duckdb+parquet",
+        persist_directory="./data/chromadb"  # Carpeta donde se guardará tu base
+    )
+)
+
+# Crear o acceder a una colección
+def get_or_create_collection(collection_name="articulos"):
+    collection = chroma_client.get_or_create_collection(name=collection_name)
+    return collection
+
+# Insertar documentos nuevos
+def insert_documents(documents: list, ids: list, metadatas: list):
+    """
+    documents: lista de textos
+    ids: lista de IDs únicos
+    metadatas: lista de diccionarios de metadatos (opcional pero recomendado)
+    """
+    collection = get_or_create_collection()
+    collection.add(
+        documents=documents,
+        ids=ids,
+        metadatas=metadatas
+    )
+    chroma_client.persist()  # Guarda cambios
+
+# Buscar documentos similares
+def query_similar_documents(query_text: str, n_results: int = 5):
+    collection = get_or_create_collection()
+    results = collection.query(
+        query_texts=[query_text],
+        n_results=n_results,
+        include=["documents", "metadatas"]
+    )
+    return results
+
+### app//extraction/__init__.py ###
+
+### app//extraction/extractor_generico.py ###
+
+### app//extraction/extractor_scraper_based.py ###
+
+### app//extraction/extractor_utils.py ###
+
 ### app//ingestion/cleaners/__init__.py ###
 
 ### app//ingestion/cleaners/text_cleaner.py ###
@@ -39,38 +90,24 @@ def clean_text(text):
     return text
 
 ### app//ingestion/ingestion_pipeline.py ###
-from app.ingestion.scrapers.divergentes import DivergentesScraper
-from app.ingestion.cleaners.text_cleaner import clean_text
-import json
-import os
+# app/ingestion/ingestion_pipeline.py
+from app.ingestion.scrapers.scraper_registry import SCRAPER_REGISTRY
 
-def run_ingestion_guardar(n=5):
-    scraper = DivergentesScraper()
-    urls = scraper.obtener_urls_home()[:n]
-    resultados = []
-
-    for url in urls:
+def recolectar_urls(n=5):
+    urls = []
+    for nombre, scraper in SCRAPER_REGISTRY.items():
         try:
-            data = scraper.extraer_contenido(url)
-            data["texto"] = clean_text(data["texto"])  # limpieza adicional
-            data["url"] = url
-            resultados.append(data)
+            urls += scraper.obtener_urls_home()[:n]
         except Exception as e:
-            print(f"❌ Error al procesar {url}: {e}")
+            print(f"Error scraper {nombre}: {e}")
+    return urls
 
-    os.makedirs("data/processed", exist_ok=True)
-    with open("data/processed/divergentes.json", "w", encoding="utf-8") as f:
-        json.dump(resultados, f, ensure_ascii=False, indent=2)
-
-    print(f"✅ {len(resultados)} artículos guardados.")
-
-if __name__ == "__main__":
-    run_ingestion_guardar()
+### app//ingestion/ingestion_utils.py ###
 
 ### app//ingestion/scrapers/__init__.py ###
 from app.ingestion.scrapers.divergentes_scraper import DivergentesScraper
 from app.ingestion.scrapers.laPrensa_scraper import LaPrensaScraper
-from app.ingestion.scrapers.confidencial import ConfidencialScraper
+from app.ingestion.scrapers.confidencial_scraper import ConfidencialScraper
 
 SCRAPER_REGISTRY = {
     "divergentes": DivergentesScraper(),
@@ -78,7 +115,7 @@ SCRAPER_REGISTRY = {
     "confidencial": ConfidencialScraper(),
 }
 
-### app//ingestion/scrapers/base.py ###
+### app//ingestion/scrapers/base_scraper.py ###
 # app/ingestion/scrapers/base.py
 from abc import ABC, abstractmethod
 
@@ -91,11 +128,11 @@ class BaseScraper(ABC):
     def extraer_contenido(self, url: str) -> dict:
         pass
 
-### app//ingestion/scrapers/confidencial.py ###
+### app//ingestion/scrapers/confidencial_scraper.py ###
 from bs4 import BeautifulSoup
 import requests
 from urllib.parse import urljoin
-from app.ingestion.scrapers.base import BaseScraper
+from app.ingestion.scrapers.base_scraper import BaseScraper
 
 class ConfidencialScraper(BaseScraper):
     def __init__(self, base_url="https://confidencial.digital"):
@@ -223,7 +260,7 @@ class DivergentesScraper(ScraperTemplate):
 ### app//ingestion/scrapers/laPrensa_scraper.py ###
 from bs4 import BeautifulSoup
 import requests
-from app.ingestion.scrapers.base import BaseScraper
+from app.ingestion.scrapers.base_scraper import BaseScraper
 
 class LaPrensaScraper(BaseScraper):
     def extraer_contenido(self, url: str) -> dict:
@@ -268,11 +305,13 @@ class LaPrensaScraper(BaseScraper):
         # Implementalo o dejalo pasar por ahora
         return []
 
+### app//ingestion/scrapers/scraper_registry.py ###
+
 ### app//ingestion/scrapers/scraper_template.py ###
 # app/ingestion/scrapers/scraper_template.py
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-from app.ingestion.scrapers.base import BaseScraper
+from app.ingestion.scrapers.base_scraper import BaseScraper
 from typing import List, Dict
 
 class ScraperTemplate(BaseScraper):
@@ -332,10 +371,10 @@ class ScraperTemplate(BaseScraper):
             "texto": texto
         }
 
-### app//logic/analisis.py ###
+### app//logic/analizador copy.py ###
 from app.services.scraper_extractor import extraer_contenido
 from app.nlp.clasificador import clasificar_texto
-from app.nlp.entidades import extraer_entidades
+from app.nlp.entidades_extractores import extraer_entidades
 from app.logic.summary import resumir
 
 def procesar_articulo_completo(url: str) -> dict:
@@ -389,7 +428,62 @@ def procesar_articulo_completo(url: str) -> dict:
 
     return resultado
 
+### app//logic/analizador.py ###
+# app/logic/analizador.py
+from app.extraction.extractor_scraper_based import extraer_contenido
+from app.logic.summary import resumir
+from app.logic.classification import clasificar_texto
+from app.logic.entidades import extraer_entidades
+from app.services.embedding_utils import generar_embedding
+from app.utils.error_handler import manejar_error
+
+class AnalizadorArticulo:
+    def __init__(self, url: str):
+        self.url = url
+        self.datos = {}
+        self.resultado = {}
+
+    def extraer(self):
+        try:
+            self.datos = extraer_contenido(self.url)
+        except Exception as e:
+            manejar_error(f"Error al extraer: {self.url}", e)
+
+    def analizar(self):
+        if not self.datos.get("texto"):
+            manejar_error("Texto vacío", Exception())
+            return
+
+        texto = self.datos["texto"]
+
+        self.resultado = {
+            "titulo": self.datos.get("titulo", "Sin título"),
+            "subtitulo": self.datos.get("subtitulo", ""),
+            "autor": self.datos.get("autor", ""),
+            "fecha": self.datos.get("fecha", ""),
+            "url": self.url,
+            "texto": texto,
+            "resumen": resumir(texto),
+            "categorias": clasificar_texto(texto),
+            "entidades": extraer_entidades(texto),
+            "embedding": generar_embedding(texto),
+        }
+
+    def ejecutar(self):
+        self.extraer()
+        self.analizar()
+        return self.resultado
+
 ### app//logic/classification.py ###
+
+### app//logic/entidades.py ###
+import spacy
+
+nlp = spacy.load("es_core_news_sm")
+
+def extraer_entidades(texto: str) -> list:
+    doc = nlp(texto)
+    return [{"texto": ent.text, "etiqueta": ent.label_} for ent in doc.ents]
 
 ### app//logic/summary.py ###
 # app/logic/summary.py
@@ -399,50 +493,27 @@ def resumir(texto: str) -> str:
     return texto[:300] + "..." if len(texto) > 300 else texto
 
 ### app//main.py ###
+# app/main.py
 from fastapi import FastAPI
-
-from app.routes.articles import router as articles_router
-from app.routes.summaries import router as resumenes_router
-from app.routes.classification_router import router as classification_router  # ✅ corregido
-from app.routes.images import router as imagenes_router
-from app.routes import analysis
-from app.routes.logs import router as logs_router
-
-
-
-from app.logic.summary import resumir
-from app.services.openai.openai_client import generar_imagen
-
-app = FastAPI(
-    title="DivergenteRAG",
-    description="API para análisis editorial automatizado",
-    version="0.1.0",
-)
-
-# Registro de rutas
-app.include_router(articles_router)
-app.include_router(resumenes_router)
-app.include_router(classification_router)
-app.include_router(imagenes_router)
-app.include_router(analysis.router)
-app.include_router(logs_router)
-
-
-from fastapi import FastAPI
-from app.routes import analysis, articles, classification_router, summaries
+from app.routes import articles, summaries, classification_router
+from app.routes import query_router, upsert_router, resumen_router  # 👈 nuevos routers RAG
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Tu API Mamadísima")
-    
-    app.include_router(analysis.router)
+    app = FastAPI(title="DivergenteRAG 2.0")
+
+    # Routers antiguos (ya en tu sistema)
     app.include_router(articles.router)
-    app.include_router(classification_router.router)
     app.include_router(summaries.router)
+    app.include_router(classification_router.router)
+
+    # Routers nuevos para RAG
+    app.include_router(query_router.router)
+    app.include_router(upsert_router.router)
+    app.include_router(resumen_router.router)
 
     return app
 
 app = create_app()
-
 ### app//models/__init__.py ###
 
 ### app//models/article.py ###
@@ -534,6 +605,8 @@ class ArticuloExtendido(Articulo):
             }
         }
 
+### app//models/article_db.py ###
+
 ### app//models/base.py ###
 
 ### app//models/classification.py ###
@@ -568,6 +641,10 @@ class ResultadoProcesado(Base):
     resumen = Column(Text)
     categorias = Column(JSON)  # ej: {"politica": 0.95}
     fecha_procesado = Column(DateTime, default=datetime.utcnow)
+
+### app//models/entities.py ###
+
+### app//models/schemas.py ###
 
 ### app//models/user.py ###
 from pydantic import BaseModel, EmailStr, Field
@@ -633,14 +710,7 @@ def serializar_embedding(embedding: list) -> str:
 def deserializar_embedding(embedding_str: str) -> list:
     return json.loads(embedding_str)
 
-### app//nlp/entidades.py ###
-import spacy
-
-nlp = spacy.load("es_core_news_sm")
-
-def extraer_entidades(texto: str) -> list:
-    doc = nlp(texto)
-    return [{"texto": ent.text, "etiqueta": ent.label_} for ent in doc.ents]
+### app//nlp/embedding_model.py ###
 
 ### app//nlp/entidades_extractores.py ###
 import spacy
@@ -653,6 +723,8 @@ def extraer_entidades(texto: str) -> dict:
         if ent.label_ in entidades:
             entidades[ent.label_].append(ent.text)
     return {k: list(set(v)) for k, v in entidades.items()}
+### app//nlp/resumen.py ###
+
 ### app//routes/__init__.py ###
 
 ### app//routes/analysis.py ###
@@ -757,7 +829,7 @@ from fastapi import APIRouter
 from app.models.article import TextoResumenInput
 from app.models.classification import ClassificationOutput
 from app.nlp.clasificador import clasificar_texto  # <-- clasificación temática
-from app.nlp.entidades import extraer_entidades
+from app.nlp.entidades_extractores import extraer_entidades
 
 router = APIRouter()
 
@@ -830,6 +902,8 @@ def obtener_imagen(prompt: str):
     url = generar_imagen(prompt)
     return {"imagen_url": url}
 
+### app//routes/ingestion_router.py ###
+
 ### app//routes/logs.py ###
 from fastapi import APIRouter
 import os
@@ -858,6 +932,21 @@ def resumen_logs(n: int = 10):
 
     return resultados
 
+### app//routes/query_router.py ###
+# app/routes/query_router.py
+from fastapi import APIRouter
+from app.services.rag_query_services import buscar_articulos_similares
+
+router = APIRouter()
+
+@router.post("/query", tags=["RAG"], summary="Buscar artículos similares")
+def consultar_articulos(pregunta: str, n: int = 5):
+    """
+    Recibe una pregunta y devuelve artículos similares basados en embeddings.
+    """
+    resultados = buscar_articulos_similares(pregunta, n)
+    return {"resultados": resultados}
+
 ### app//routes/resultados.py ###
 # app/rutas/resultados.py
 from fastapi import APIRouter, Depends
@@ -880,6 +969,22 @@ def guardar_resultado(data: ResultadoCreate, db: Session = Depends(get_db)):
 def listar_resultados(db: Session = Depends(get_db)):
     return db.query(ResultadoProcesado).all()
 
+### app//routes/resumen_router.py ###
+# app/routes/resumen_router.py
+from fastapi import APIRouter
+from app.models.schemas import TextoResumenInput, TextoOutput
+from app.logic.summary import resumir
+
+router = APIRouter()
+
+@router.post("/resumir", response_model=TextoOutput, tags=["Resúmenes"], summary="Resumir un texto")
+def resumir_texto(data: TextoResumenInput):
+    """
+    Genera un resumen básico del texto proporcionado.
+    """
+    resumen = resumir(data.texto)
+    return {"resumen": resumen}
+
 ### app//routes/summaries.py ###
 from fastapi import APIRouter
 from app.logic.summary import resumir
@@ -891,6 +996,22 @@ router = APIRouter()
 def resumir_texto(data: TextoResumenInput):
     resumen = resumir(data.texto)
     return {"resumen": resumen}
+
+### app//routes/upsert_router.py ###
+# app/routes/upsert_router.py
+from fastapi import APIRouter
+from app.services.rag_query_service import agregar_articulo_a_chroma
+from app.models.schemas import TextoResumenInput
+
+router = APIRouter()
+
+@router.post("/upsert", tags=["RAG"], summary="Agregar artículo manualmente")
+def insertar_articulo(data: TextoResumenInput):
+    """
+    Permite agregar un nuevo artículo a la base RAG enviando título, texto y url.
+    """
+    respuesta = agregar_articulo_a_chroma(data.titulo, data.texto, data.url)
+    return respuesta
 
 ### app//schemas.py ###
 from pydantic import BaseModel
@@ -977,6 +1098,45 @@ def generar_imagen(prompt: str) -> str:
         return "https://via.placeholder.com/1024?text=Error+al+generar+imagen"
 if os.getenv("DEBUG") == "1":
     print("🔐 API Key (inicio parcial):", openai.api_key[:8])
+
+### app//services/rag_query_services.py ###
+# app/services/rag_query_service.py
+from app.database.chroma_db import insert_documents, query_similar_documents
+from typing import List
+
+def agregar_articulo_a_chroma(titulo: str, texto: str, url: str):
+    """
+    Inserta un nuevo artículo en ChromaDB.
+    """
+    document = texto
+    id_unico = url  # Asumimos que el URL es único
+    metadata = {"titulo": titulo, "url": url}
+
+    insert_documents(
+        documents=[document],
+        ids=[id_unico],
+        metadatas=[metadata]
+    )
+    return {"mensaje": "Artículo agregado exitosamente."}
+
+def buscar_articulos_similares(pregunta: str, n: int = 5) -> List[dict]:
+    """
+    Busca artículos similares a la pregunta planteada.
+    """
+    resultados = query_similar_documents(query_text=pregunta, n_results=n)
+
+    documentos = resultados.get("documents", [[]])[0]
+    metadatos = resultados.get("metadatas", [[]])[0]
+
+    respuesta = []
+    for doc, meta in zip(documentos, metadatos):
+        respuesta.append({
+            "titulo": meta.get("titulo", "Sin título"),
+            "url": meta.get("url", "Desconocido"),
+            "fragmento": doc[:500] + "..." if len(doc) > 500 else doc
+        })
+
+    return respuesta
 
 ### app//services/scraper_extractor.py ###
 from urllib.parse import urlparse, urljoin
@@ -1086,6 +1246,24 @@ def obtener_urls_home(n=5) -> list[str]:
     return urls
 
 ### app//services/test_script.py ###
+
+### app//utils/error_handler.py ###
+# app/utils/error_handler.py
+import logging
+
+logger = logging.getLogger(__name__)
+
+def manejar_error(mensaje: str, error: Exception):
+    logger.error(f"{mensaje} - {str(error)}")
+
+### app//utils/logger.py ###
+# app/utils/logger.py
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
 
 ### app//utils/logs.py ###
 import os

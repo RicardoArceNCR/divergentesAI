@@ -1,6 +1,6 @@
 from bs4 import BeautifulSoup
 import requests
-from app.ingestion.scrapers.base import BaseScraper
+from app.ingestion.scrapers.base_scraper import BaseScraper
 
 class LaPrensaScraper(BaseScraper):
     def extraer_contenido(self, url: str) -> dict:

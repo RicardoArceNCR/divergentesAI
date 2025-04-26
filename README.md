@@ -1,147 +1,116 @@
-# DivergenteRAG API
+# DivergenteRAG 2.0
 
-**Análisis editorial automatizado para medios independientes**
-
----
-
-## 📊 Descripción
-
-DivergenteRAG es una API desarrollada con **FastAPI** que permite:
-- Ingesta automatizada de artículos de medios como Divergentes, La Prensa y Confidencial.
-- Resumen automático de contenidos.
-- Clasificación semántica de textos.
-- Extracción de entidades nombradas (personas, organizaciones, lugares).
-- Generación de embeddings y vectores semánticos.
-- Generación de imágenes desde prompts.
-
-Todo está organizado de manera modular, escalable y segura.
+🚀 Sistema de extracción, análisis y recuperación aumentada de información de noticias, utilizando FastAPI, embeddings semánticos y bases vectoriales.
 
 ---
 
-## 🔄 Instalación local
+## 📙 Descripción
 
-1. Clona el repositorio:
+DivergenteRAG permite:
+- Realizar scraping automático de sitios de noticias.
+- Resumir, clasificar temáticamente y extraer entidades de los textos.
+- Generar embeddings semánticos y almacenar los resultados.
+- Consultar artículos similares a partir de preguntas.
+- Generar imágenes automáticas a partir de prompts (vía OpenAI).
 
-```bash
-https://github.com/RicardoArceNCR/divergentesAI.git
-cd divergentesAI
+Ideal para proyectos de análisis de medios, reportes automáticos o bases de conocimiento.
+
+---
+
+## 📊 Estructura del Proyecto
+
+```plaintext
+app/
+ ├── database/          # Bases de datos locales (SQLite y ChromaDB)
+ ├── ingestion/         # Scrapers y limpieza de datos
+ ├── services/          # NLP, OpenAI, query de vectores
+ ├── logic/             # Análisis: resumen, clasificación, entidades
+ ├── nlp/               # Modelos spaCy y Sentence-Transformers
+ ├── models/            # Pydantic schemas para FastAPI
+ ├── routes/            # Endpoints FastAPI organizados por funcionalidad
+ └── utils/              # Manejo de errores y logs
 ```
 
-2. Crea y activa un entorno virtual:
+---
+
+## 🛠️ Instalación Rápida
+
+1. Clona este repositorio:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate  # En Windows: .venv\Scripts\activate
+git clone https://github.com/tu_usuario/tu_repositorio.git
+cd tu_repositorio
 ```
 
-3. Instala las dependencias:
+2. Crea un entorno virtual e instala las dependencias:
 
 ```bash
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Instala el modelo de SpaCy en español:
+3. Agrega un archivo `.env` en la raíz del proyecto:
 
-```bash
-python -m spacy download es_core_news_sm
+```dotenv
+OPENAI_API_KEY=sk-XXXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
 
 ---
 
-## 🔒 Variables de entorno
+## 🚀 Ejecución del Servidor
 
-Crea un archivo `.env` en la raíz basado en `.env.example`:
-
-```bash
-cp .env.example .env
-```
-
-Completa:
-
-```bash
-OPENAI_API_KEY=tu-api-key-de-openai
-ENV=development
-PORT=8000
-```
-
-**Importante:** No subas nunca `.env` a GitHub.
-
----
-
-## 🚀 Cómo levantar la API
-
-Levantar localmente en modo desarrollo:
+Lanza la API localmente con:
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-Acceder a la documentación interactiva:
-
-- [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) (Swagger UI)
-- [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc) (Redoc)
-
----
-
-## 🔢 Ingesta de artículos
-
-Para correr la ingesta automática de medios:
-
-```bash
-python app/ingestion/ingestion_pipeline.py
-```
-
-Esto guardará los artículos procesados en:
-
-```bash
-/data/processed/
-```
+Accede a la documentación interactiva en:
+- Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
+- Redocly: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
 ---
 
-## 🔧 Endpoints principales
+## 👁️ Endpoints Principales
 
-| Método | Ruta | Descripción |
-|:-------|:-----|:-------------|
-| GET | `/articulos` | Artículos resumidos con embedding |
-| GET | `/articulos/extendidos` | Artículos extendidos con más metadatos |
-| GET | `/articulos/analizados` | Artículos analizados con resumen, entidades, categorías |
-| POST | `/resumir` | Genera resumen de un texto |
-| POST | `/clasificar` | Clasifica texto por temática |
-| POST | `/entidades` | Extrae entidades (PERSONA, ORG, LOC) |
-| GET | `/imagen?prompt=...` | Genera imagen DALL-E desde texto |
-| GET | `/logs/resumen` | Consulta últimos artículos analizados |
-
----
-
-## 🛡️ Seguridad
-
-- `.env` está en `.gitignore`, protegido.
-- No subir nunca llaves de API a GitHub.
-- Al trabajar en colaboración, usar `.env.example` como plantilla.
+| Ruta                  | Método | Descripción |
+|:----------------------|:--------|:------------|
+| `/articulos`           | GET     | Obtener artículos resumidos con embeddings |
+| `/articulos/extendidos`| GET     | Obtener artículos completos |
+| `/query`               | POST    | Buscar artículos similares mediante pregunta |
+| `/upsert`              | POST    | Insertar manualmente un artículo en ChromaDB |
+| `/clasificar`          | POST    | Clasificar un texto por temática |
+| `/entidades`           | POST    | Extraer entidades nombradas |
+| `/imagen`              | GET     | Generar imagen desde prompt OpenAI |
+| `/resumir`             | POST    | Resumir un texto enviado |
 
 ---
 
-## 📊 Tecnologías usadas
+## 🎓 Tecnologías Usadas
 
-- **FastAPI**
-- **Pydantic**
-- **SQLAlchemy** (SQLite embedido)
-- **SpaCy** (NLP en español)
-- **Sentence-Transformers** (Embeddings)
-- **OpenAI API** (Generación de imágenes)
-- **BeautifulSoup** (Web scraping)
-
----
-
-## 👩‍💼 Contribución
-
-1. Haz un fork
-2. Crea una rama nueva: `git checkout -b feature/tu-feature`
-3. Commitea tus cambios: `git commit -m "feat: tu descripción"`
-4. Haz push a la rama: `git push origin feature/tu-feature`
-5. Abre un Pull Request
+- **FastAPI** — Servidor de aplicaciones
+- **SQLAlchemy** — ORM para base de datos SQLite
+- **ChromaDB** — Base de datos vectorial local
+- **Sentence Transformers** — Embeddings semánticos
+- **spaCy** — Extracción de entidades en español
+- **OpenAI API** — Generación de imágenes
+- **BeautifulSoup4 / Cloudscraper** — Scraping de sitios web
 
 ---
 
-# 🎉 Gracias por apoyar el periodismo independiente.
+## 📆 Planes a Futuro
+
+- Agregar autenticación y usuarios.
+- Mejorar el motor de RAG con rerankers locales.
+- Dashboard visual para explorar resultados.
+
+---
+
+## 📘 Licencia
+
+Este proyecto es de uso libre para fines educativos y de experimentación. Puedes adaptarlo o expandirlo mencionando el proyecto original.
+
+---
+
+> Creado con ❤️ para el análisis crítico de medios de comunicación.

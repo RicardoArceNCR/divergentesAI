@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.models.article import TextoResumenInput
 from app.models.classification import ClassificationOutput
 from app.nlp.clasificador import clasificar_texto  # <-- clasificación temática
-from app.nlp.entidades import extraer_entidades
+from app.nlp.entidades_extractores import extraer_entidades
 
 router = APIRouter()
 
