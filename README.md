@@ -1,89 +1,96 @@
-# 🧠 DivergenteRAG – Plataforma de análisis crítico y automatización editorial
+🧠 DivergenteRAG
 
-Sistema local con FastAPI que analiza artículos, resume contenido y expone endpoints para uso editorial y visualización automatizada.
+DivergenteRAG es un sistema modular para procesamiento, análisis editorial automatizado y generación crítica de contenido periodístico, diseñado para medios independientes y proyectos de investigación. Usa técnicas de NLP, embeddings semánticos y generación con modelos como OpenAI para crear resúmenes, clasificaciones y estructuras editoriales a partir de scraping inteligente.
 
----
+📁 Estructura del Proyecto
 
-## 🗂️ Estructura del proyecto
+app/
+├── ingestion/                 # Módulo de scraping y limpieza
+│   ├── ingestion_pipeline.py
+│   ├── cleanners.py
+│   └── coordinador_scraper.py
+│       └── scrapers/
+│           ├── scraper_template.py
+│           ├── divergentes_scraper.py
+│           └── confidencial.py
+│
+├── logic/                     # Núcleo de procesamiento editorial
+│   ├── analisis.py            # Orquesta resumen + clasificación + entidades
+│   ├── classification.py
+│   └── embedding.py
+│
+├── services/                  # Utilidades para generación, APIs y embeddings
+│   ├── openai_client.py       # Invoca OpenAI
+│   ├── prompt_utils.py        # Construye prompts
+│   ├── summaries.py           # Transforma respuestas en textos editoriales
+│   └── embedding_utils.py     # Coordina embeddings locales o remotos
+│
+├── nlp/                       # Modelos NLP locales
+│   ├── embedding.py
+│   ├── entidades.py
+│   └── clasificador.py
+│
+├── models/                    # Definición de modelos Pydantic y DB
+│   ├── article.py
+│   ├── classification.py
+│   ├── db_modelos.py
+│   └── resultados.py
+│
+├── routes/                    # Endpoints FastAPI
+│   ├── articles.py
+│   ├── classification_router.py
+│   └── resultados.py
+│
+├── utils/
+│   └── logs.py                # Logs y helpers
+│
+├── database/
+│   ├── database.py
+│   └── schemas.py
+│
+└── main.py                    # Inicia FastAPI y monta rutas
 
-- `app/` – Código principal (routers, modelos, servicios)
-- `services/` – Módulos auxiliares para IA, scraping, etc.
-- `test/` – Tests automáticos con Pytest
-- `requirements.txt` – Dependencias locales
-- `requirements-dockers.txt` – Dependencias para Docker
-- `docker-compose.yml` – Contenedor para ejecución completa
-- `Dockerfile` – Imagen base optimizada
-- `.venv/` – Entorno virtual local (no se sube a GitHub)
+⚙️ Instalación
 
----
+Clona el repositorio:
 
-## 🚀 Ejecutar en entorno local
+git clone https://github.com/ricardoarceNCR/divergentesAI.git
+cd divergentesAI
 
-```bash
-# Crear entorno virtual con Python 3.10
-python3.10 -m venv .venv
-source .venv/bin/activate
+Crea un entorno virtual e instala dependencias:
 
-# Instalar dependencias
+python -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 
-# Levantar servidor
+Crea el archivo .env con tus credenciales:
+
+OPENAI_API_KEY=tu_api_key
+
+🚀 Ejecutar en desarrollo
+
 uvicorn app.main:app --reload
-```
 
----
+Para probar los endpoints, accede a: http://localhost:8000/docs
 
-## 🐳 Ejecutar con Docker
+🧰 Funcionalidades clave
 
-```bash
-# Levantar entorno
-docker-compose build --no-cache
-docker-compose up
-```
+👷️ Scrapers especializados para medios como Divergentes y Confidencial
 
----
+🧼 Limpieza automatizada del contenido
 
-## 🧪 Ejecutar pruebas
+🧠 Clasificación semántica, entidades y resumen vía analisis.py
 
-```bash
-pytest
-```
+📦 Generación editorial vía OpenAI y módulos locales de NLP
 
----
+🌟 Embeddings para futuras búsquedas y RAG (Retrieval-Augmented Generation)
 
-{
-  "titulo": "Protestas en la capital",
-  "resumen": "El presidente fue acusado de soborno...",
-  "url": "https://ejemplo.com/articulo",
-  "autor": "Nombre del autor",
-  "fecha": "2025-04-17",
-  "embedding": [0.123, -0.456, 0.789]
-}
+🔌 API REST completa con rutas documentadas
 
+🧪 Pruebas
 
-## 🔐 Variables de entorno
+pytest tests/
 
-Crear archivo `.env` basado en `.env.example`:
+(Puedes agregar cobertura con coverage si se requiere producción futura.)
 
-```env
-OPENAI_API_KEY=tu_clave_openai
-ENV=development
-PORT=8000
-```
-
----
-
-## 📦 Comandos con Make
-
-Este proyecto incluye un `Makefile` para automatizar tareas comunes:
-
-| Comando | Descripción |
-|--------|-------------|
-| `make init` | Crea entorno virtual e instala dependencias |
-| `make dev` | Ejecuta el servidor local con FastAPI |
-| `make docker` | Compila y levanta los contenedores con Docker |
-| `make test` | Ejecuta pruebas con `pytest` |
-| `make clean` | Elimina cachés y carpetas temporales |
-| `make activate` | Muestra cómo activar el entorno virtual |
-
-> Asegúrate de tener `make` instalado en tu sistema (Linux/macOS lo incluyen por defecto, en Windows se puede usar [GnuWin](http://gnuwin32.sourceforge.net/packages/make.htm) o WSL).
+🔭 Roadmap (Propuesto)
