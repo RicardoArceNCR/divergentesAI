@@ -8,7 +8,7 @@ from datetime import datetime
 router = APIRouter()
 
 @router.get("/articulos/analizados", tags=["Análisis completo"])
-def analizar_articulos(n: int = 5):
+def analizar_articulos(n: int = 15):
     urls = obtener_urls_home(n=n)
     resultados = []
 

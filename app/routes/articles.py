@@ -8,6 +8,7 @@ from fastapi import APIRouter
 from app.logic.summary import resumir
 from app.services.scrapers.coordinador_scrapers import obtener_urls_home
 from app.services.scraper_extractor import extraer_contenido
+from app.services.sitemap_scraper import obtener_urls_sitemap
 from app.services.nlp_utils.embedding_utils import generar_embedding
 
 # Models
@@ -53,11 +54,16 @@ def procesar_url(url: str, extendido: bool = False):
         return None
 
 @router.get("/articulos", response_model=list[Articulo], tags=["Artículos"], summary="Obtener artículos resumidos con embedding")
-def obtener_articulos(n: int = 5):
-    urls = obtener_urls_home()
-    return [a for a in (procesar_url(url) for url in urls[:n]) if a]
+def obtener_articulos(n: int = 30):
+    urls = obtener_urls_home(n=n)
+    return [a for a in (procesar_url(url) for url in urls) if a]
 
 @router.get("/articulos/extendidos", response_model=list[ArticuloExtendido])
-def articulos_ext(n: int = 5):
-    urls = obtener_urls_home()
-    return [a for a in (procesar_url(url, extendido=True) for url in urls[:n]) if a]
+def articulos_ext(n: int = 30):
+    urls = obtener_urls_home(n=n)
+    return [a for a in (procesar_url(url, extendido=True) for url in urls) if a]
+
+@router.get("/articulos_sitemap", response_model=list[Articulo], tags=["Artículos"])
+def obtener_articulos_sitemap(n: int = 30):
+    urls = obtener_urls_sitemap(n=n)
+    return [a for a in (procesar_url(url) for url in urls) if a]

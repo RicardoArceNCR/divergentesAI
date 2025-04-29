@@ -1,62 +1,81 @@
 # app/ingestion/scrapers/scraper_template.py
+
+from abc import ABC, abstractmethod
+from typing import List, Dict
+import cloudscraper
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-from app.ingestion.scrapers.base_scraper import BaseScraper
-from typing import List, Dict
+import logging
+
+class BaseScraper(ABC):
+    @abstractmethod
+    def obtener_urls_home(self, n: int = 2) -> List[str]:
+        pass
+
+    @abstractmethod
+    def extraer_contenido(self, url: str) -> Dict[str, str]:
+        pass
 
 class ScraperTemplate(BaseScraper):
+    TEXTOS_BASURA = [
+        "Todos los derechos reservados",
+        "Esta publicación puede ser utilizada",
+        "previa autorización de la dirección del medio",
+        "[email protected]",
+        "Mostrar más resultados"
+    ]
+
     def __init__(self, base_url: str):
         self.base_url = base_url
+        self.scraper = cloudscraper.create_scraper()
+        self.timeout = 10  # segundos
 
-    def obtener_urls_desde_url(self, url: str, n: int = 5) -> List[str]:
-        import requests
-        response = requests.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
-        urls = set()
-
-        for a in soup.find_all("a", href=True):
-            full_url = urljoin(url, a["href"])
-            urls.add(full_url)
-
-        return list(urls)[:n]
+    def es_articulo(self, url: str) -> bool:
+        return (
+            url.strip("/").count("/") >= 2
+            and not any(x in url for x in ["opinion", "podcast", "etiqueta", "categoria"])
+        )
 
     def obtener_urls_home(self, n: int = 5) -> List[str]:
-        return self.obtener_urls_desde_url(self.base_url, n)
+        urls = []
+        try:
+            response = self.scraper.get(self.base_url, timeout=self.timeout)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "html.parser")
+            links = soup.find_all("a", href=True)
+
+            for link in links:
+                full_url = urljoin(self.base_url, link["href"])
+                if self.es_articulo(full_url) and full_url not in urls:
+                    urls.append(full_url)
+                if len(urls) >= n:
+                    break
+        except Exception as e:
+            logging.error(f"Error al obtener URLs del home: {e}")
+        return urls
 
     def extraer_contenido(self, url: str) -> Dict[str, str]:
-        import requests
-        response = requests.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
+        contenido = {"titulo": "", "texto": ""}
+        try:
+            response = self.scraper.get(url, timeout=self.timeout)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "html.parser")
+            titulo_tag = soup.find("h1")
+            texto_tags = soup.find_all(["p", "div"], recursive=True)
 
-        titulo = soup.title.string.strip() if soup.title else "Sin título"
-        subtitulo_tag = soup.find("h2", class_="td-post-sub-title")
-        subtitulo = subtitulo_tag.get_text(strip=True) if subtitulo_tag else ""
+            if titulo_tag:
+                contenido["titulo"] = titulo_tag.get_text(strip=True)
 
-        autor_tag = soup.find("a", class_="td-post-author-name")
-        autor = autor_tag.get_text(strip=True) if autor_tag else ""
+            texto_final = []
+            for tag in texto_tags:
+                if tag.name == "p" and tag.get_text(strip=True):
+                    texto = tag.get_text(strip=True)
+                    if not any(basura in texto for basura in self.TEXTOS_BASURA):
+                        texto_final.append(texto)
 
-        fecha_tag = soup.find("time", class_="entry-date")
-        fecha = fecha_tag.get("datetime", "") if fecha_tag else ""
+            contenido["texto"] = " ".join(texto_final)
 
-        candidatos = [
-            soup.find("div", class_="td-post-content"),
-            soup.find("div", class_="post-content"),
-            soup.find("article"),
-            soup.find("div", class_=lambda x: x and "content" in x)
-        ]
-        contenido = next((c for c in candidatos if c), None)
-
-        if not contenido:
-            print(f"⚠️ No se encontró contenido en: {url}")
-            return {}
-
-        parrafos = contenido.find_all("p")
-        texto = "\n".join(p.get_text(strip=True) for p in parrafos if p.get_text(strip=True))
-
-        return {
-            "titulo": titulo,
-            "subtitulo": subtitulo,
-            "autor": autor,
-            "fecha": fecha,
-            "texto": texto
-        }
+        except Exception as e:
+            logging.error(f"Error extrayendo contenido de {url}: {e}")
+        
+        return contenido

@@ -90,10 +90,11 @@ def recolectar_urls(n=5):
     urls = []
     for nombre, scraper in SCRAPER_REGISTRY.items():
         try:
-            urls += scraper.obtener_urls_home()[:n]
+            urls += scraper.obtener_urls_home(n=n)
         except Exception as e:
             print(f"Error scraper {nombre}: {e}")
     return urls
+
 
 ### app//ingestion/ingestion_utils.py ###
 
@@ -180,75 +181,64 @@ class ConfidencialScraper(BaseScraper):
         }
 
 ### app//ingestion/scrapers/divergentes_scraper.py ###
-import cloudscraper
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+# Scraper para Divergentes robusto
+# app/ingestion/scrapers/divergentes_scraper.py
+
 from app.ingestion.scrapers.scraper_template import ScraperTemplate
+from urllib.parse import urljoin
+from bs4 import BeautifulSoup
+from typing import List
 
 class DivergentesScraper(ScraperTemplate):
-    def __init__(self, base_url="https://www.divergentes.com/"):
-        self.base_url = base_url
-        self.scraper = cloudscraper.create_scraper()
+    def __init__(self):
+        super().__init__(base_url="https://www.divergentes.com")
 
-    def obtener_urls_home(self) -> list:
-        response = self.scraper.get(self.base_url)
-        soup = BeautifulSoup(response.text, "html.parser")
-        urls = set()
+    def es_articulo(self, url: str) -> bool:
+        url = url.split("#")[0]
 
-        for a in soup.find_all("a", href=True):
-            full_url = urljoin(self.base_url, a["href"])
-            if self.base_url in full_url:
-                urls.add(full_url)
+        if not url.startswith(self.base_url):
+            return False
 
-        return [
-            url for url in urls
-            if not any(x in url for x in ["etiqueta", "podcast", "opinion", "autor", "#"])
-            and len(url.split("/")) >= 5
-        ]
+        path = url.replace(self.base_url, "")
+        path = path.strip("/")
 
-    def extraer_contenido(self, url: str) -> dict:
-        response = self.scraper.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
+        if not path:
+            return False
+        if path in ["categoria", "etiqueta", "opinion", "podcast", "investigaciones"]:
+            return False
+        if any(x in path for x in ["#", "?", "search", "tag"]):
+            return False
 
-        # Contenido principal
-        contenedor = (
-            soup.find("div", class_="td-post-content")
-            or soup.find("div", class_="entry-content")
-            or soup.find("article")
-        )
-        if contenedor:
-            parrafos = contenedor.find_all("p")
-            texto = "\n".join(
-                p.get_text(strip=True)
-                for p in parrafos
-                if p.get_text(strip=True)
-            )
-        else:
-            print(f"⚠️ No se encontró contenedor de texto en: {url}")
-            texto = ""
+        return path.count("/") >= 1
 
-        # Título principal
-        titulo = soup.find("meta", property="og:title")
-        titulo = titulo["content"].strip() if titulo else soup.title.string.strip() if soup.title else ""
+    def obtener_urls_home(self, n: int = 30) -> List[str]:
+        urls = []
+        try:
+            response = self.scraper.get(self.base_url, timeout=self.timeout)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "html.parser")
 
-        # Subtítulo si existe
-        subtitulo = soup.find("h2")
-        subtitulo = subtitulo.get_text(strip=True) if subtitulo else ""
+            # Ignorar links del menú hamburguesa
+            sidenav = soup.find("aside", id="sidenavmenu")
+            links_hamburguesa = {urljoin(self.base_url, a["href"]) for a in sidenav.find_all("a", href=True)} if sidenav else set()
 
-        # Autor y fecha
-        autor = soup.find("meta", attrs={"name": "author"})
-        autor = autor["content"].strip() if autor else ""
+            # Ignorar links del navbar principal
+            nav = soup.find("nav")
+            links_navbar = {urljoin(self.base_url, a["href"]) for a in nav.find_all("a", href=True)} if nav else set()
 
-        fecha = soup.find("meta", attrs={"property": "article:published_time"})
-        fecha = fecha["content"].strip() if fecha else ""
+            for link in soup.find_all("a", href=True):
+                full_url = urljoin(self.base_url, link["href"])
+                if full_url not in links_hamburguesa and full_url not in links_navbar:
+                    # Aquí ya no filtramos por "es_articulo"
+                    urls.append(full_url)
 
-        return {
-            "titulo": titulo,
-            "subtitulo": subtitulo,
-            "autor": autor,
-            "fecha": fecha,
-            "texto": texto,
-        }
+            urls = list(dict.fromkeys(urls))  # Eliminamos duplicados
+            urls = urls[:n]  # Limitar solo si n está definido
+
+        except Exception as e:
+            print(f"⚠️ Error obteniendo URLs de Divergentes: {e}")
+
+        return urls
 
 ### app//ingestion/scrapers/laPrensa_scraper.py ###
 from bs4 import BeautifulSoup
@@ -302,124 +292,86 @@ class LaPrensaScraper(BaseScraper):
 
 ### app//ingestion/scrapers/scraper_template.py ###
 # app/ingestion/scrapers/scraper_template.py
+
+from abc import ABC, abstractmethod
+from typing import List, Dict
+import cloudscraper
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-from app.ingestion.scrapers.base_scraper import BaseScraper
-from typing import List, Dict
+import logging
+
+class BaseScraper(ABC):
+    @abstractmethod
+    def obtener_urls_home(self, n: int = 2) -> List[str]:
+        pass
+
+    @abstractmethod
+    def extraer_contenido(self, url: str) -> Dict[str, str]:
+        pass
 
 class ScraperTemplate(BaseScraper):
+    TEXTOS_BASURA = [
+        "Todos los derechos reservados",
+        "Esta publicación puede ser utilizada",
+        "previa autorización de la dirección del medio",
+        "[email protected]",
+        "Mostrar más resultados"
+    ]
+
     def __init__(self, base_url: str):
         self.base_url = base_url
+        self.scraper = cloudscraper.create_scraper()
+        self.timeout = 10  # segundos
 
-    def obtener_urls_desde_url(self, url: str, n: int = 5) -> List[str]:
-        import requests
-        response = requests.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
-        urls = set()
-
-        for a in soup.find_all("a", href=True):
-            full_url = urljoin(url, a["href"])
-            urls.add(full_url)
-
-        return list(urls)[:n]
+    def es_articulo(self, url: str) -> bool:
+        return (
+            url.strip("/").count("/") >= 2
+            and not any(x in url for x in ["opinion", "podcast", "etiqueta", "categoria"])
+        )
 
     def obtener_urls_home(self, n: int = 5) -> List[str]:
-        return self.obtener_urls_desde_url(self.base_url, n)
+        urls = []
+        try:
+            response = self.scraper.get(self.base_url, timeout=self.timeout)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "html.parser")
+            links = soup.find_all("a", href=True)
+
+            for link in links:
+                full_url = urljoin(self.base_url, link["href"])
+                if self.es_articulo(full_url) and full_url not in urls:
+                    urls.append(full_url)
+                if len(urls) >= n:
+                    break
+        except Exception as e:
+            logging.error(f"Error al obtener URLs del home: {e}")
+        return urls
 
     def extraer_contenido(self, url: str) -> Dict[str, str]:
-        import requests
-        response = requests.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
+        contenido = {"titulo": "", "texto": ""}
+        try:
+            response = self.scraper.get(url, timeout=self.timeout)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "html.parser")
+            titulo_tag = soup.find("h1")
+            texto_tags = soup.find_all(["p", "div"], recursive=True)
 
-        titulo = soup.title.string.strip() if soup.title else "Sin título"
-        subtitulo_tag = soup.find("h2", class_="td-post-sub-title")
-        subtitulo = subtitulo_tag.get_text(strip=True) if subtitulo_tag else ""
+            if titulo_tag:
+                contenido["titulo"] = titulo_tag.get_text(strip=True)
 
-        autor_tag = soup.find("a", class_="td-post-author-name")
-        autor = autor_tag.get_text(strip=True) if autor_tag else ""
+            texto_final = []
+            for tag in texto_tags:
+                if tag.name == "p" and tag.get_text(strip=True):
+                    texto = tag.get_text(strip=True)
+                    if not any(basura in texto for basura in self.TEXTOS_BASURA):
+                        texto_final.append(texto)
 
-        fecha_tag = soup.find("time", class_="entry-date")
-        fecha = fecha_tag.get("datetime", "") if fecha_tag else ""
+            contenido["texto"] = " ".join(texto_final)
 
-        candidatos = [
-            soup.find("div", class_="td-post-content"),
-            soup.find("div", class_="post-content"),
-            soup.find("article"),
-            soup.find("div", class_=lambda x: x and "content" in x)
-        ]
-        contenido = next((c for c in candidatos if c), None)
-
-        if not contenido:
-            print(f"⚠️ No se encontró contenido en: {url}")
-            return {}
-
-        parrafos = contenido.find_all("p")
-        texto = "\n".join(p.get_text(strip=True) for p in parrafos if p.get_text(strip=True))
-
-        return {
-            "titulo": titulo,
-            "subtitulo": subtitulo,
-            "autor": autor,
-            "fecha": fecha,
-            "texto": texto
-        }
-
-### app//logic/analizador copy.py ###
-from app.services.scraper_extractor import extraer_contenido
-from app.nlp.clasificador import clasificar_texto
-from app.nlp.entidades_extractores import extraer_entidades
-from app.logic.summary import resumir
-
-def procesar_articulo_completo(url: str) -> dict:
-    """
-    Toma una URL y devuelve un artículo con metadatos, resumen, categorías, entidades y logs de validación.
-    """
-    print(f"🔍 Procesando: {url}")
-    datos = extraer_contenido(url)
-
-    texto = datos.get("texto", "").strip()
-    if not texto or len(texto) < 30:
-        print(f"❌ Texto vacío o demasiado corto para: {url}")
-        return {
-            "url": url,
-            "error": "Texto vacío o muy corto",
-            "datos_raw": datos
-        }
-
-    resultado = {
-        "titulo": datos.get("titulo", "Sin título"),
-        "subtitulo": datos.get("subtitulo", ""),
-        "url": url,
-        "autor": datos.get("autor", ""),
-        "fecha": datos.get("fecha", ""),
-        "texto": texto
-    }
-
-    try:
-        resumen = resumir(texto)
-        resultado["resumen"] = resumen if resumen != "string" else ""
-        print(f"📝 Resumen generado: {resumen[:80]}...")
-    except Exception as e:
-        resultado["resumen"] = ""
-        print(f"⚠️ Error al generar resumen: {e}")
-
-    try:
-        categorias = clasificar_texto(texto)
-        resultado["categorias"] = categorias
-        print(f"📊 Categorías: {categorias}")
-    except Exception as e:
-        resultado["categorias"] = {}
-        print(f"⚠️ Error al clasificar texto: {e}")
-
-    try:
-        entidades = extraer_entidades(texto)
-        resultado["entidades"] = entidades
-        print(f"🏷️ Entidades: {entidades}")
-    except Exception as e:
-        resultado["entidades"] = {}
-        print(f"⚠️ Error al extraer entidades: {e}")
-
-    return resultado
+        except Exception as e:
+            logging.error(f"Error extrayendo contenido de {url}: {e}")
+        
+        return contenido
 
 ### app//logic/analizador.py ###
 # app/logic/analizador.py
@@ -638,33 +590,18 @@ class ResultadoProcesado(Base):
 ### app//models/entities.py ###
 
 ### app//models/schemas.py ###
-# app/models/schemas.py
-
 from pydantic import BaseModel
-from typing import List, Optional, Dict
+from typing import Optional, Dict
 
-# 📄 Para insertar artículos manualmente a Chroma
-class ArticleInput(BaseModel):
-    id: str
-    texto: str
-    metadatos: Optional[Dict[str, str]] = None
-
-# 📄 Para consultar artículos similares (query RAG)
-class QueryInput(BaseModel):
-    pregunta: str
-    n_resultados: Optional[int] = 5
-
-# 📄 Para resumir un texto
+# Para /resumir
 class ResumenInput(BaseModel):
     texto: str
 
-# 📄 Para clasificar un texto
-class ClasificacionInput(BaseModel):
+# Para /upsert
+class UpsertInput(BaseModel):
+    titulo: str
     texto: str
-
-# 📄 Para extraer entidades de un texto
-class EntidadesInput(BaseModel):
-    texto: str
+    url: str
 
 ### app//models/user.py ###
 from pydantic import BaseModel, EmailStr, Field
@@ -758,7 +695,7 @@ from datetime import datetime
 router = APIRouter()
 
 @router.get("/articulos/analizados", tags=["Análisis completo"])
-def analizar_articulos(n: int = 5):
+def analizar_articulos(n: int = 15):
     urls = obtener_urls_home(n=n)
     resultados = []
 
@@ -790,6 +727,7 @@ from fastapi import APIRouter
 from app.logic.summary import resumir
 from app.services.scrapers.coordinador_scrapers import obtener_urls_home
 from app.services.scraper_extractor import extraer_contenido
+from app.services.sitemap_scraper import obtener_urls_sitemap
 from app.services.nlp_utils.embedding_utils import generar_embedding
 
 # Models
@@ -835,14 +773,19 @@ def procesar_url(url: str, extendido: bool = False):
         return None
 
 @router.get("/articulos", response_model=list[Articulo], tags=["Artículos"], summary="Obtener artículos resumidos con embedding")
-def obtener_articulos(n: int = 5):
-    urls = obtener_urls_home()
-    return [a for a in (procesar_url(url) for url in urls[:n]) if a]
+def obtener_articulos(n: int = 30):
+    urls = obtener_urls_home(n=n)
+    return [a for a in (procesar_url(url) for url in urls) if a]
 
 @router.get("/articulos/extendidos", response_model=list[ArticuloExtendido])
-def articulos_ext(n: int = 5):
-    urls = obtener_urls_home()
-    return [a for a in (procesar_url(url, extendido=True) for url in urls[:n]) if a]
+def articulos_ext(n: int = 30):
+    urls = obtener_urls_home(n=n)
+    return [a for a in (procesar_url(url, extendido=True) for url in urls) if a]
+
+@router.get("/articulos_sitemap", response_model=list[Articulo], tags=["Artículos"])
+def obtener_articulos_sitemap(n: int = 30):
+    urls = obtener_urls_sitemap(n=n)
+    return [a for a in (procesar_url(url) for url in urls) if a]
 
 ### app//routes/classification_router.py ###
 from fastapi import APIRouter
@@ -991,19 +934,35 @@ def listar_resultados(db: Session = Depends(get_db)):
 
 ### app//routes/resumen_router.py ###
 # app/routes/resumen_router.py
+
 from fastapi import APIRouter
 from app.models.schemas import ResumenInput
-from app.logic.summary import resumir
+from summarizer import Summarizer
 
 router = APIRouter()
 
-@router.post("/resumir", tags=["Resúmenes"], summary="Resumir un texto")
-def ResumenInput(data: ResumenInput):
+# Instancia única del modelo BERT
+bert_model = Summarizer()
+
+@router.post("/resumir", tags=["Resúmenes"], summary="Resumir un texto automáticamente")
+def resumir_texto(data: ResumenInput):
     """
-    Genera un resumen básico del texto proporcionado.
+    Recibe un texto y devuelve un resumen automático usando BERT extractivo, adaptado al tamaño del texto.
     """
-    resumen = resumir(data.texto)
-    return {"resumen": resumen}
+    texto_original = data.texto.strip()
+    longitud_texto = len(texto_original)
+
+    if longitud_texto < 500:
+        # No tiene sentido resumir textos muy pequeños
+        resumen_generado = texto_original
+    elif 500 <= longitud_texto <= 1500:
+        # Resumen más corto
+        resumen_generado = bert_model(texto_original, min_length=30, max_length=100)
+    else:
+        # Resumen más extenso para textos largos
+        resumen_generado = bert_model(texto_original, min_length=100, max_length=300)
+
+    return {"resumen": resumen_generado}
 
 ### app//routes/summaries.py ###
 from fastapi import APIRouter
@@ -1018,15 +977,14 @@ def resumir_texto(data: TextoResumenInput):
     return {"resumen": resumen}
 
 ### app//routes/upsert_router.py ###
-# app/routes/upsert_router.py
 from fastapi import APIRouter
+from app.models.schemas import UpsertInput  # 👈 importar el modelo correcto
 from app.services.rag_query_services import agregar_articulo_a_chroma
-from app.models.schemas import ResumenInput
 
 router = APIRouter()
 
 @router.post("/upsert", tags=["RAG"], summary="Agregar artículo manualmente")
-def insertar_articulo(data: ResumenInput):
+def insertar_articulo(data: UpsertInput):
     """
     Permite agregar un nuevo artículo a la base RAG enviando título, texto y url.
     """
@@ -1264,6 +1222,44 @@ def obtener_urls_home(n=5) -> list[str]:
             print(f"❌ Error al obtener URLs de {nombre}: {e}")
 
     return urls
+
+### app//services/sitemap_scraper.py ###
+import requests
+from bs4 import BeautifulSoup
+from typing import List
+
+def obtener_urls_sitemap(base_url: str = "https://www.divergentes.com/sitemap_index.xml", n: int = 50) -> List[str]:
+    urls = []
+    try:
+        # Leer el índice de sitemaps
+        response = requests.get(base_url, timeout=10)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.content, "xml")
+
+        # Extraer todos los sitemaps secundarios
+        sitemap_links = [loc.get_text(strip=True) for loc in soup.find_all("loc")]
+
+        for sitemap_url in sitemap_links:
+            sitemap_response = requests.get(sitemap_url, timeout=10)
+            sitemap_response.raise_for_status()
+            sitemap_soup = BeautifulSoup(sitemap_response.content, "xml")
+
+            # Extraer URLs reales de artículos
+            for loc in sitemap_soup.find_all("loc"):
+                articulo_url = loc.get_text(strip=True)
+                urls.append(articulo_url)
+                if len(urls) >= n:
+                    break
+
+            if len(urls) >= n:
+                break
+
+        urls = list(dict.fromkeys(urls))  # Elimina duplicados
+        return urls
+
+    except Exception as e:
+        print(f"⚠️ Error leyendo sitemap: {e}")
+        return []
 
 ### app//services/test_script.py ###
 

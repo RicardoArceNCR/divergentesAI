@@ -1,69 +1,58 @@
-import cloudscraper
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+# Scraper para Divergentes robusto
+# app/ingestion/scrapers/divergentes_scraper.py
+
 from app.ingestion.scrapers.scraper_template import ScraperTemplate
+from urllib.parse import urljoin
+from bs4 import BeautifulSoup
+from typing import List
 
 class DivergentesScraper(ScraperTemplate):
-    def __init__(self, base_url="https://www.divergentes.com/"):
-        self.base_url = base_url
-        self.scraper = cloudscraper.create_scraper()
+    def __init__(self):
+        super().__init__(base_url="https://www.divergentes.com")
 
-    def obtener_urls_home(self) -> list:
-        response = self.scraper.get(self.base_url)
-        soup = BeautifulSoup(response.text, "html.parser")
-        urls = set()
+    def es_articulo(self, url: str) -> bool:
+        url = url.split("#")[0]
 
-        for a in soup.find_all("a", href=True):
-            full_url = urljoin(self.base_url, a["href"])
-            if self.base_url in full_url:
-                urls.add(full_url)
+        if not url.startswith(self.base_url):
+            return False
 
-        return [
-            url for url in urls
-            if not any(x in url for x in ["etiqueta", "podcast", "opinion", "autor", "#"])
-            and len(url.split("/")) >= 5
-        ]
+        path = url.replace(self.base_url, "")
+        path = path.strip("/")
 
-    def extraer_contenido(self, url: str) -> dict:
-        response = self.scraper.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
+        if not path:
+            return False
+        if path in ["categoria", "etiqueta", "opinion", "podcast", "investigaciones"]:
+            return False
+        if any(x in path for x in ["#", "?", "search", "tag"]):
+            return False
 
-        # Contenido principal
-        contenedor = (
-            soup.find("div", class_="td-post-content")
-            or soup.find("div", class_="entry-content")
-            or soup.find("article")
-        )
-        if contenedor:
-            parrafos = contenedor.find_all("p")
-            texto = "\n".join(
-                p.get_text(strip=True)
-                for p in parrafos
-                if p.get_text(strip=True)
-            )
-        else:
-            print(f"⚠️ No se encontró contenedor de texto en: {url}")
-            texto = ""
+        return path.count("/") >= 1
 
-        # Título principal
-        titulo = soup.find("meta", property="og:title")
-        titulo = titulo["content"].strip() if titulo else soup.title.string.strip() if soup.title else ""
+    def obtener_urls_home(self, n: int = 30) -> List[str]:
+        urls = []
+        try:
+            response = self.scraper.get(self.base_url, timeout=self.timeout)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "html.parser")
 
-        # Subtítulo si existe
-        subtitulo = soup.find("h2")
-        subtitulo = subtitulo.get_text(strip=True) if subtitulo else ""
+            # Ignorar links del menú hamburguesa
+            sidenav = soup.find("aside", id="sidenavmenu")
+            links_hamburguesa = {urljoin(self.base_url, a["href"]) for a in sidenav.find_all("a", href=True)} if sidenav else set()
 
-        # Autor y fecha
-        autor = soup.find("meta", attrs={"name": "author"})
-        autor = autor["content"].strip() if autor else ""
+            # Ignorar links del navbar principal
+            nav = soup.find("nav")
+            links_navbar = {urljoin(self.base_url, a["href"]) for a in nav.find_all("a", href=True)} if nav else set()
 
-        fecha = soup.find("meta", attrs={"property": "article:published_time"})
-        fecha = fecha["content"].strip() if fecha else ""
+            for link in soup.find_all("a", href=True):
+                full_url = urljoin(self.base_url, link["href"])
+                if full_url not in links_hamburguesa and full_url not in links_navbar:
+                    # Aquí ya no filtramos por "es_articulo"
+                    urls.append(full_url)
 
-        return {
-            "titulo": titulo,
-            "subtitulo": subtitulo,
-            "autor": autor,
-            "fecha": fecha,
-            "texto": texto,
-        }
+            urls = list(dict.fromkeys(urls))  # Eliminamos duplicados
+            urls = urls[:n]  # Limitar solo si n está definido
+
+        except Exception as e:
+            print(f"⚠️ Error obteniendo URLs de Divergentes: {e}")
+
+        return urls

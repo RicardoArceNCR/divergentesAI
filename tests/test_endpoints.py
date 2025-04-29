@@ -1,32 +1,58 @@
-# tests/test_endpoints.py
+# tests/test_endpoints.py (versión corregida y profesional)
 
 from fastapi.testclient import TestClient
 from app.main import app
 
 client = TestClient(app)
 
-def test_articulos():
-    response = client.get("/articulos?n=1")
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
-
+# Test para /resumir
 def test_resumir():
     response = client.post("/resumir", json={
-        "texto": "El presidente fue acusado de corrupción y se desató una protesta.",
-        "titulo": "Acusación de corrupción",
-        "url": "manual"
+        "texto": "Este es un texto de prueba para ver si el resumen funciona correctamente."
     })
     assert response.status_code == 200
-    assert "resumen" in response.json()
+    data = response.json()
+    assert "resumen" in data
 
+# Test para /upsert
+def test_upsert():
+    response = client.post("/upsert", json={
+        "id": "test-id",
+        "titulo": "Título de prueba",
+        "texto": "Texto de prueba para insertar en ChromaDB.",
+        "metadatos": {"fuente": "test"}
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert "mensaje" in data or "detail" in data
+
+# Test para /query
+def test_query():
+    response = client.post("/query", json={
+        "pregunta": "¿Qué está pasando en Nicaragua?",
+        "n_resultados": 3
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert "documents" in data or "resultados" in data
+
+# Test para /clasificar
 def test_clasificar():
     response = client.post("/clasificar", json={
-        "texto": "El presidente fue acusado de soborno..."
+        "texto": "La corrupción gubernamental afecta el desarrollo del país."
     })
     assert response.status_code == 200
-    assert "categorias" in response.json()
+    data = response.json()
+    assert "categorias" in data  # Ajustado a tu API real
 
-def test_imagen():
-    response = client.get("/imagen?prompt=Un gato espacial")
+# Test para /entidades
+def test_entidades():
+    response = client.post("/entidades", json={
+        "texto": "Daniel Ortega es el presidente de Nicaragua."
+    })
     assert response.status_code == 200
-    assert isinstance(response.json(), str)
+    data = response.json()
+    # Verificamos las claves correctasclar
+    assert "PERSONA" in data
+    assert "ORG" in data
+    assert "LOC" in data

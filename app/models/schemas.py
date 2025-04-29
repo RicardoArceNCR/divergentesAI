@@ -1,27 +1,12 @@
-# app/models/schemas.py
-
 from pydantic import BaseModel
-from typing import List, Optional, Dict
+from typing import Optional, Dict
 
-# 📄 Para insertar artículos manualmente a Chroma
-class ArticleInput(BaseModel):
-    id: str
-    texto: str
-    metadatos: Optional[Dict[str, str]] = None
-
-# 📄 Para consultar artículos similares (query RAG)
-class QueryInput(BaseModel):
-    pregunta: str
-    n_resultados: Optional[int] = 5
-
-# 📄 Para resumir un texto
+# Para /resumir
 class ResumenInput(BaseModel):
     texto: str
 
-# 📄 Para clasificar un texto
-class ClasificacionInput(BaseModel):
+# Para /upsert
+class UpsertInput(BaseModel):
+    titulo: str
     texto: str
-
-# 📄 Para extraer entidades de un texto
-class EntidadesInput(BaseModel):
-    texto: str
+    url: str
