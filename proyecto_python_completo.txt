@@ -441,7 +441,8 @@ def resumir(texto: str) -> str:
 # app/main.py
 from fastapi import FastAPI
 from app.routes import articles, summaries, classification_router
-from app.routes import query_router, upsert_router, resumen_router  # 👈 nuevos routers RAG
+from app.routes import query_router, upsert_router, resumen_router
+from app.routes import articulos_crawler
 
 def create_app() -> FastAPI:
     app = FastAPI(title="DivergenteRAG 2.0")
@@ -455,6 +456,7 @@ def create_app() -> FastAPI:
     app.include_router(query_router.router)
     app.include_router(upsert_router.router)
     app.include_router(resumen_router.router)
+    app.include_router(articulos_crawler.router)
 
     return app
 
@@ -787,6 +789,45 @@ def obtener_articulos_sitemap(n: int = 30):
     urls = obtener_urls_sitemap(n=n)
     return [a for a in (procesar_url(url) for url in urls) if a]
 
+### app//routes/articulos_crawler.py ###
+# FastAPI
+from fastapi import APIRouter
+
+# Servicios internos
+from app.services.crawler import crawler_dinamico
+from app.services.scraper_extractor import extraer_contenido
+from app.logic.summary import resumir
+from app.services.nlp_utils.embedding_utils import generar_embedding
+
+# Modelos
+from app.models.article import Articulo
+
+# Inicializar router
+router = APIRouter()
+
+def procesar_url(url: str) -> Articulo:
+    try:
+        data = extraer_contenido(url)
+        resumen = resumir(data["texto"])
+        embedding = generar_embedding(data["texto"])
+        
+        return Articulo(
+            titulo=data.get("titulo", ""),
+            resumen=resumen,
+            url=url,
+            autor=data.get("autor", ""),
+            fecha=data.get("fecha", ""),
+            embedding=embedding
+        )
+    except Exception as e:
+        print(f"⚠️ Error procesando {url}: {e}")
+        return None
+
+@router.get("/articulos_crawler", response_model=list[Articulo])
+def articulos_crawler(n: int = 50, profundidad: int = 2):
+    urls = crawler_dinamico(base_url="https://www.divergentes.com", max_n=n, max_depth=profundidad)
+    return [a for a in (procesar_url(url) for url in urls) if a]
+
 ### app//routes/classification_router.py ###
 from fastapi import APIRouter
 from app.models.article import TextoResumenInput
@@ -1004,6 +1045,57 @@ class TextoOutput(BaseModel):
     resumen: str
 
 ### app//services/__init__.py ###
+
+### app//services/crawler.py ###
+from typing import List
+import cloudscraper
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
+
+def crawler_dinamico(base_url: str, max_n: int = 50, max_depth: int = 2) -> List[str]:
+    """
+    Crawler sencillo compatible con Cloudflare.
+    """
+    scraper = cloudscraper.create_scraper()
+    urls_visitadas = set()
+    urls_por_visitar = [(base_url, 0)]  # (url, profundidad)
+
+    while urls_por_visitar and len(urls_visitadas) < max_n:
+        url_actual, profundidad = urls_por_visitar.pop(0)
+
+        if url_actual in urls_visitadas:
+            continue
+
+        try:
+            response = scraper.get(url_actual, timeout=10)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "html.parser")
+
+            # Marcar como visitado
+            urls_visitadas.add(url_actual)
+
+            # Solo expandir si no hemos alcanzado max_depth
+            if profundidad < max_depth:
+                for link in soup.find_all("a", href=True):
+                    full_url = urljoin(base_url, link['href'])
+                    full_url = full_url.rstrip("/")
+
+                    if any(full_url.startswith(x) for x in ["mailto:", "tel:"]):
+                        continue
+                    if full_url.endswith((".pdf", ".jpg", ".png", ".docx", ".xlsx", ".zip")):
+                        continue
+                    if "facebook.com" in full_url or "twitter.com" in full_url:
+                        continue
+
+                    parsed = urlparse(full_url)
+                    if parsed.netloc == urlparse(base_url).netloc:
+                        if full_url not in urls_visitadas:
+                            urls_por_visitar.append((full_url, profundidad + 1))
+
+        except Exception as e:
+            print(f"⚠️ Error en {url_actual}: {e}")
+
+    return list(urls_visitadas)[:max_n]
 
 ### app//services/nlp_utils/embedding_utils.py ###
 from sentence_transformers import SentenceTransformer

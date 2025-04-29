@@ -1,7 +1,8 @@
 # app/main.py
 from fastapi import FastAPI
 from app.routes import articles, summaries, classification_router
-from app.routes import query_router, upsert_router, resumen_router  # 👈 nuevos routers RAG
+from app.routes import query_router, upsert_router, resumen_router
+from app.routes import articulos_crawler
 
 def create_app() -> FastAPI:
     app = FastAPI(title="DivergenteRAG 2.0")
@@ -15,6 +16,7 @@ def create_app() -> FastAPI:
     app.include_router(query_router.router)
     app.include_router(upsert_router.router)
     app.include_router(resumen_router.router)
+    app.include_router(articulos_crawler.router)
 
     return app
 
